@@ -1,4 +1,4 @@
-# Plan de implementación — MVP gestorAlmacen
+# Plan de implementación — MVP warehouse-manager
 
 > Sistema web *mobile-first* de gestión de almacén/sucursales y punto de venta para una empresa de calzado, bolsos y accesorios.
 > Este documento define **qué** se construirá y **en qué orden**. Las specs detalladas con TODOs por fase se generarán a partir de él (ver §14).
@@ -42,7 +42,7 @@ A futuro se sumarán proveedores, portales de proveedores y clientes, transferen
 | **Usuarios** | Crear, editar y desactivar usuarios. Generar credenciales (usuario/contraseña). Asignar sucursales. Asignar permisos. |
 | **Almacén / sucursal** | Mapa de productos con stock y estado. Ubicar productos. Ver la capacidad usada y disponible del almacén, sus contenedores y sus racks. Reasignar (reubicar) productos. Crear zonas, crear contenedores en una zona y crear racks en un contenedor. Generar QR de ubicaciones. |
 | **Productos** | Carga masiva mediante una tabla editable tipo Excel/Shopify. Crear, actualizar y desactivar productos. Generar etiqueta con código de barras e imagen del producto. |
-| **POS** | Abrir caja. Buscar producto. Agregar al carrito. Suspender carritos (hasta 5). Vender. Imprimir ticket. |
+| **POS** | Abrir caja. Buscar producto. Agregar al carrito. Suspender carritos (hasta 5). Vender. Imprimir ticket. Cancelar una venta completa mientras su caja siga abierta (decisión 2026-10-01). |
 | **Reportes** | Ventas por rango de fechas, por defecto el día actual, con totales. |
 | **Ajustes** | Sucursales: 1 por defecto, solo se editan sus datos. Cajas: 2 por defecto, asignadas a la sucursal 1, solo se editan sus datos. |
 
@@ -71,7 +71,7 @@ Estos módulos no se construyen ahora, pero el modelo de datos y la arquitectura
 | UI | Tailwind CSS + shadcn/ui (Radix) | Componentes accesibles con objetivos táctiles grandes. |
 | Grid editable | `react-data-grid` o AG Grid Community (MIT) | Para la carga masiva. Se evita Handsontable por su licencia comercial. |
 | Excel | `exceljs` | Generación y lectura de plantillas `.xlsx`. |
-| Backend | Node.js LTS + Fastify | Arquitectura modular por dominio. |
+| Backend | Node.js 24 LTS + Fastify | Arquitectura modular por dominio. |
 | Validación | Zod + `fastify-type-provider-zod` | Valida requests y responses y genera OpenAPI desde los mismos esquemas. |
 | Documentación API | `@fastify/swagger` + `@fastify/swagger-ui` | Expuesta en `/api/docs` (protegida en producción). |
 | ORM | Prisma | Migraciones versionadas y tipos generados desde el schema. |
@@ -88,7 +88,7 @@ Estos módulos no se construyen ahora, pero el modelo de datos y la arquitectura
 ### 2.2 Estructura del monorepo
 
 ```
-gestorAlmacen/
+warehouse-manager/
 ├── apps/
 │   ├── api/                 # Fastify
 │   │   ├── prisma/          # schema.prisma, migrations/, seed.ts
@@ -111,6 +111,8 @@ gestorAlmacen/
 │   └── scripts/                     # backup/restore
 └── docs/
 ```
+
+**Paquetes:** `@warehouse-manager/api`, `@warehouse-manager/web` y `@warehouse-manager/shared`.
 
 **Regla de dependencias:** `web → shared` y `api → shared`. `shared` no depende de nadie y es TypeScript puro sin acceso a BD ni DOM.
 
@@ -359,7 +361,7 @@ erDiagram
 #### Organización
 | Entidad | Campos clave | Reglas |
 |---|---|---|
-| `Branch` (sucursal) | `code`, `name`, `legalName`, `taxId`, `address`, `phone`, `email`, `imageUrl`, `logoUrl`, `ticketHeader`, `ticketFooterMessage`, `promoQrImageUrl`, `promoQrText`, `timezone`, `currency`, `taxRateBp` (puntos base, 1600 = 16 %), `pricesIncludeTax`, `isActive` | En el MVP solo existe la sucursal del seed y únicamente se **edita**. |
+| `Branch` (sucursal) | `code`, `name`, `legalName`, `taxId`, `address`, `phone`, `email`, `imageUrl`, `logoUrl`, `ticketHeader`, `ticketFooterMessage`, `promoQrImageUrl`, `promoQrText`, `timezone`, `currency`, `taxRateBp` (puntos base, 1600 = 16 %), `pricesIncludeTax`, `lowStockThreshold` (umbral de stock bajo, 2 por defecto), `isActive` | En el MVP solo existe la sucursal del seed y únicamente se **edita**. Valores del seed: MXN, IVA 16 % incluido en los precios (§13, respondido 2026-10-01). |
 | `BranchCounter` | `branchId`, `key` (`SALE_FOLIO`), `value` | Consecutivos por sucursal. Se incrementa con `UPDATE … RETURNING` dentro de la transacción de venta. |
 | `CashRegister` (caja) | `branchId`, `code`, `name`, `isActive` | El seed crea 2 cajas en la sucursal 1. En el MVP solo se editan. |
 | `CashSession` (turno de caja) | `cashRegisterId`, `openedById`, `openedAt`, `openingAmount`, `closedById`, `closedAt`, `expectedAmount`, `countedAmount`, `difference`, `status` (`OPEN`/`CLOSED`) | **Máximo 1 sesión `OPEN` por caja**, garantizado con un índice único parcial. Para vender se requiere una sesión abierta. |
@@ -367,7 +369,7 @@ erDiagram
 #### Seguridad
 | Entidad | Campos clave | Reglas |
 |---|---|---|
-| `User` | `username` (único, minúsculas), `passwordHash`, `fullName`, `email?`, `phone?`, `roleId`, `isActive`, `mustChangePassword`, `lastLoginAt`, `type` (`STAFF`; reservado para `SUPPLIER`/`CUSTOMER`) | Desactivar un usuario revoca sus refresh tokens. |
+| `User` | `username` (único, minúsculas), `passwordHash`, `fullName`, `email?`, `phone?`, `roleId`, `isActive`, `mustChangePassword`, `lastLoginAt`, `type` (en el MVP el enum solo tiene `STAFF`; `SUPPLIER`/`CUSTOMER` se agregan en su fase del roadmap) | Desactivar un usuario revoca sus refresh tokens. |
 | `Role` | `code`, `name`, `isSystem` | Roles semilla del sistema que no se pueden borrar. |
 | `Permission` | `code` (por ejemplo `products.manage`), `module`, `description` | Catálogo definido en `shared` y sincronizado por el seed. |
 | `RolePermission` / `UserPermission` | Llaves compuestas | Permisos efectivos = permisos del rol ∪ permisos extra del usuario. |
@@ -394,9 +396,9 @@ erDiagram
 | `Warehouse` | `branchId`, `code`, `name` | 1 por sucursal en el MVP; el modelo admite N. |
 | `Zone` | `warehouseId`, `code` (letra/s), `name`, `color?`, `isStaging`, `priority` (para rotación futura), `isActive`, `sortOrder` | Cada almacén tiene **una zona de staging** creada por el seed (`STG`). |
 | `Container` | `zoneId`, `code` (2 dígitos), `name?`, `isActive` | `code` único por zona. |
-| `Rack` | `containerId`, `code` (2 dígitos), `locationCode` (único por almacén, derivado: `A-01-03`), `capacityUnits`, `labelColor?`, `isActive` | `locationCode` se recalcula si cambia algún código de la jerarquía. Un rack no se puede desactivar si tiene stock. |
+| `Rack` | `containerId`, `warehouseId` (desnormalizado para la unicidad), `code` (2 dígitos), `locationCode` (único por almacén, derivado: `A-01-03`), `capacityUnits`, `labelColor?`, `isActive` | `locationCode` se recalcula si cambia algún código de la jerarquía. Un rack no se puede desactivar si tiene stock. |
 | `StockLocation` | `variantId`, `rackId`, `quantity`, `reservedQty` | Único (`variantId`, `rackId`). Restricciones `CHECK quantity >= 0`, `reserved_qty >= 0` y `reserved_qty <= quantity`. |
-| `InventoryMovement` (kardex) | `variantId`, `fromRackId?`, `toRackId?`, `quantity`, `type`, `userId`, `referenceType?`, `referenceId?`, `note?`, `createdAt` | **Inmutable**: solo se inserta. |
+| `InventoryMovement` (kardex) | `variantId`, `fromRackId?`, `toRackId?`, `quantity`, `type`, `userId`, `referenceType?`, `referenceId?`, `note?`, `capacityOverridden`, `createdAt` | **Inmutable**: solo se inserta. `capacityOverridden = true` cuando se excedió la capacidad con `inventory.override_capacity`. |
 
 **Tipos de movimiento (`InventoryMovementType`):**
 
@@ -409,14 +411,15 @@ erDiagram
 | `RETURN_TO_RACK` | El cliente descarta y el producto vuelve a su rack (`reservedQty`--). |
 | `TO_STAGING` | El cliente descarta y el producto va a staging (`fromRack` → rack de staging). |
 | `SALE` | Salida por venta (`quantity`-- y `reservedQty`--). |
+| `SALE_CANCEL` | Cancelación de venta: el producto regresa a staging (→ rack de staging). |
 | `ADJUSTMENT_IN` / `ADJUSTMENT_OUT` | Ajustes manuales con motivo y permiso especial. |
 
 #### Punto de venta
 | Entidad | Campos clave | Reglas |
 |---|---|---|
-| `Cart` | `cashSessionId`, `userId`, `status` (`ACTIVE`/`SUSPENDED`/`CHECKED_OUT`/`DISCARDED`), `label?` (por ejemplo "Señora vestido rojo"), `customerName?` | **Máximo 5 carritos `SUSPENDED` por sesión de caja**, más el activo. Se guardan en el servidor para que las reservas sean consistentes y sobrevivan a una recarga. |
+| `Cart` | `cashSessionId`, `userId`, `status` (`ACTIVE`/`SUSPENDED`/`CHECKED_OUT`/`DISCARDED`), `label?` (por ejemplo "Señora vestido rojo"), `customerName?`, `discount` (descuento global en centavos) | **Máximo 5 carritos `SUSPENDED` por sesión de caja**, más el activo. Se guardan en el servidor para que las reservas sean consistentes y sobrevivan a una recarga. |
 | `CartItem` | `cartId`, `variantId`, `sourceRackId`, `quantity`, `unitPrice`, `discount` | Cada ítem reserva stock del rack de origen. |
-| `Sale` | `folio`, `branchId`, `cashRegisterId`, `cashSessionId`, `sellerId`, `cartId`, `customerName?`, `subtotal`, `discountTotal`, `taxTotal`, `total`, `status` (`COMPLETED`/`CANCELLED`), `cancelledById?`, `cancelReason?` | La cancelación queda fuera del alcance funcional del MVP, pero el estado existe. |
+| `Sale` | `folio`, `branchId`, `cashRegisterId`, `cashSessionId`, `sellerId`, `cartId`, `customerName?`, `subtotal`, `globalDiscount`, `discountTotal`, `taxRateBp` y `pricesIncludeTax` (copia de la configuración de la sucursal al vender), `taxTotal`, `total`, `status` (`COMPLETED`/`CANCELLED`), `cancelledAt?`, `cancelledById?`, `cancelReason?` | **Cancelación en el MVP** (decisión 2026-10-01): solo total, con `pos.sale.cancel` y motivo obligatorio, y solo mientras la `CashSession` de la venta esté `OPEN`. El stock regresa a staging (`SALE_CANCEL`). El efectivo de una venta cancelada no cuenta en el esperado del corte. |
 | `SaleItem` | `saleId`, `variantId`, `sourceRackId`, `skuSnapshot`, `nameSnapshot`, `variantLabelSnapshot`, `unitPrice`, `quantity`, `discount`, `lineTotal` | Los snapshots mantienen el ticket histórico intacto aunque el producto cambie después. |
 | `Payment` | `saleId`, `method` (`CASH`/`CARD`/`TRANSFER`), `amount`, `received?`, `change?`, `reference?` | Admite pago mixto (varios `Payment`). La suma de `amount` debe ser igual a `total`. |
 
@@ -426,7 +429,7 @@ erDiagram
 - Ocupación de un rack = Σ `quantity` de sus `StockLocation`. Las unidades reservadas siguen contando porque su espacio pertenece al rack.
 - La capacidad de contenedor, zona y almacén se **deriva por agregación** (Σ capacidad y Σ ocupación de sus racks activos). No se almacena: se calcula con consultas agregadas o con una vista SQL `v_rack_occupancy`.
 - La zona de **staging no tiene límite de capacidad** y se excluye de los totales del almacén.
-- Al ubicar o reubicar se valida la capacidad libre. Si se excede, se bloquea con el error `RACK_CAPACITY_EXCEEDED`. La posibilidad de forzarlo con el permiso `inventory.override_capacity` depende de la respuesta del cliente (§13).
+- Al ubicar o reubicar se valida la capacidad libre. Si se excede, se bloquea con el error `RACK_CAPACITY_EXCEEDED`, salvo que el usuario tenga `inventory.override_capacity` y lo confirme. En ese caso el movimiento queda con `capacityOverridden = true` (§13, respondido 2026-10-01).
 - Estado de ocupación: verde < 70 %, ámbar 70–90 %, rojo > 90 %. Los umbrales son configurables más adelante.
 
 **Estado del producto (mapa)**
@@ -434,7 +437,7 @@ erDiagram
 | Estado | Condición |
 |---|---|
 | Disponible | `quantity - reservedQty > umbral_bajo` |
-| Stock bajo | `0 < disponible <= umbral_bajo` (umbral global configurable; 2 por defecto) |
+| Stock bajo | `0 < disponible <= umbral_bajo` (umbral = `Branch.lowStockThreshold`, 2 por defecto, editable en Ajustes) |
 | Agotado | `quantity = 0` en todas las ubicaciones |
 | En piso | `reservedQty > 0` (unidades mostradas al cliente) |
 | En staging | Existe stock en la zona de staging pendiente de reacomodo |
@@ -453,6 +456,7 @@ stateDiagram-v2
     EnPiso --> EnStaging: descartar a staging (TO_STAGING) · rack -1, staging +1
     EnPiso --> Vendido: cobrar (SALE) · quantity -1, reservedQty -1
     EnStaging --> EnRack: reubicar (RELOCATE)
+    Vendido --> EnStaging: cancelar venta, caja abierta (SALE_CANCEL) · staging +1
     Vendido --> [*]
 ```
 
@@ -460,7 +464,7 @@ stateDiagram-v2
 - Un carrito descartado libera sus reservas (por defecto regresan al rack de origen).
 - Al cerrar la caja no puede haber carritos con reservas. El sistema pide resolverlos antes del corte.
 
-**Carga masiva sin ubicación:** si una fila de la carga masiva trae existencia pero no ubicación, el stock entra a **staging** (`STG-01`) para ubicarse después.
+**Carga masiva sin ubicación:** si una fila de la carga masiva trae existencia pero no ubicación, el stock entra a **staging** (rack `STG-01-01`) para ubicarse después.
 
 ---
 
@@ -523,7 +527,7 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
 | Productos | `products.read`, `products.manage`, `products.import`, `products.labels` |
 | Almacén | `warehouse.read`, `warehouse.manage` (estructura), `warehouse.labels` |
 | Inventario | `inventory.putaway`, `inventory.relocate`, `inventory.adjust`, `inventory.override_capacity`, `inventory.movements.read` |
-| POS | `pos.session.open`, `pos.session.close`, `pos.sell`, `pos.discount` |
+| POS | `pos.session.open`, `pos.session.close`, `pos.sell`, `pos.discount`, `pos.sale.cancel` |
 | Reportes | `reports.sales`, `reports.sales.all_users` |
 | Ajustes | `settings.branch`, `settings.registers` |
 
@@ -533,7 +537,7 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
 |---|---|
 | **Administrador** | Todos. |
 | **Gerente** | Todos excepto `users.permissions`. |
-| **Vendedor** | `products.read`, `warehouse.read`, `pos.*` excepto `pos.discount`, `inventory.relocate` (para regresar productos) y `reports.sales` (solo sus propias ventas). |
+| **Vendedor** | `products.read`, `warehouse.read`, `pos.*` excepto `pos.discount` y `pos.sale.cancel`, `inventory.relocate` (para regresar productos) y `reports.sales` (solo sus propias ventas). |
 | **Almacenista** | `products.read`, `products.labels`, `warehouse.*`, `inventory.putaway`, `inventory.relocate` e `inventory.movements.read`. |
 
 - En el backend, cada ruta declara `requirePermission('x.y')`. El frontend usa el mismo catálogo para ocultar menús y acciones (`<Can perm="x.y">`).
@@ -593,11 +597,12 @@ flowchart LR
 **Entregables**
 - Monorepo pnpm (`apps/api`, `apps/web` y `packages/shared`) con `tsconfig` base estricto y referencias entre paquetes.
 - ESLint y Prettier, `lint-staged` + `husky` (pre-commit), `.editorconfig` y `.nvmrc`.
-- `docker-compose.dev.yml` con PostgreSQL 16 (y Adminer/pgAdmin opcional).
-- API: Fastify con `GET /api/v1/health`, Swagger UI en `/api/docs`, configuración por variables de entorno validadas con Zod y logger pino.
+- `docker-compose.dev.yml` con PostgreSQL 16 (sin Adminer/pgAdmin; decisión 2026-10-01).
+- API: Fastify con `GET /api/v1/health`, Swagger UI en `/api/docs`, configuración por variables de entorno validadas con Zod y logger pino. En F0 el health reporta solo el estado de la API; el chequeo de BD se agrega en F2 con el plugin `prisma` (objetivo final en §10.3).
 - Web: Vite + React + Tailwind + shadcn/ui, layout *mobile-first* (barra inferior en móvil y lateral en escritorio) y página placeholder por módulo.
+- HTTPS en desarrollo con `mkcert` (Vite dev server accesible por IP LAN) para probar la cámara del celular desde el inicio (riesgo §12).
 - Jest configurado en `api`, `web` y `shared`, con un test de ejemplo en cada uno.
-- CI opcional (GitHub Actions): lint, typecheck, test y build.
+- CI (GitHub Actions): fuera de F0 (decisión 2026-10-01); se retoma en F10.
 - `README.md` con los comandos de arranque.
 
 **Criterios de aceptación**
@@ -621,14 +626,15 @@ flowchart LR
   - sucursal 1 y cajas 1 y 2;
   - almacén principal y zona `STG` con su contenedor y rack de staging;
   - categorías de ejemplo.
-- **Seed de demo opcional** (`pnpm seed:demo`): zonas A–C, racks y productos con variantes y stock, para desarrollo y demostraciones.
+- **Seed de demo opcional** (`pnpm seed:demo`): zonas A–C, racks y productos con variantes, **sin stock** (decisión 2026-10-01: el stock no se escribe fuera de `InventoryService`; la carga de stock de demo llega en F7).
 - `packages/shared`:
-  - enums, catálogo de permisos;
-  - esquemas Zod por entidad (`Create`/`Update`/`Dto`/`ListQuery`);
+  - enums, catálogo de permisos y roles del sistema;
+  - esquema `Dto` (lectura) por entidad. Los esquemas de entrada (`Create`/`Update`/`ListQuery`) se definen en la spec de cada módulo (F4–F9) junto con su endpoint (decisión 2026-10-01);
   - utilidades `money`, `sku`, `locationCode` y `scanClassifier`;
   - tipo de error estándar y esquema de paginación.
-- Test de paridad entre los enums de `shared` y los de Prisma.
-- ERD actualizado en `docs/` (generado o mantenido a mano).
+- Tests de paridad entre `shared` y Prisma: enums, y campos de cada `Dto` contra su modelo.
+- Postgres de pruebas (`postgres-test` en `docker-compose.dev.yml`) y tests de integración de migraciones, restricciones y seed desde F1 (decisión 2026-10-01).
+- ERD mantenido a mano en `docs/erd.md` (mermaid).
 
 **Criterios de aceptación**
 - `prisma migrate dev` y `seed` funcionan sobre una BD vacía, y el seed se puede ejecutar dos veces sin duplicar datos.
@@ -791,6 +797,7 @@ flowchart LR
 - **Ajuste:** `POST /inventory/adjust` (con permiso, motivo obligatorio).
 - **Kardex:** `GET /inventory/movements` filtrable por variante, rack, tipo, usuario y fechas.
 - **Etiquetas QR:** `GET /warehouses/:id/labels?scope=zone|container|rack&ids=` devuelve los datos para la hoja de QR.
+- **Seed de demo con stock:** extiende `pnpm seed:demo` para registrar stock de ejemplo mediante `InventoryService` (`INITIAL_LOAD`).
 
 **UI**
 - **Configurar almacén:**
@@ -869,7 +876,8 @@ sequenceDiagram
   4. descuenta el stock (`SALE`);
   5. marca el carrito como `CHECKED_OUT`.
 - `GET /sales/:id` (detalle) y `GET /sales/:id/ticket` (datos del ticket, para reimpresión).
-- Descuento por partida o global, solo con `pos.discount`.
+- Descuento por partida o global, solo con `pos.discount`. Se guarda como monto en centavos; la UI puede capturar un porcentaje y convertirlo.
+- **Cancelación:** `POST /sales/:id/cancel` con `{reason}` y `pos.sale.cancel`. Es solo total y solo si la `CashSession` de la venta sigue `OPEN`. En una transacción: el stock de cada partida entra a staging (`SALE_CANCEL`), la venta queda `CANCELLED` y se registra en `AuditLog`. El esperado del corte excluye las ventas canceladas.
 
 **UI**
 - **Abrir caja:** elegir la caja (entre las de la sucursal), indicar el fondo inicial y confirmar.
@@ -882,6 +890,7 @@ sequenceDiagram
 - **Quitar o descartar:** hoja inferior con "Regresar a su ubicación (A-01-03)" o "Enviar a staging".
 - **Cobro:** métodos de pago (con mixto), teclado numérico para el efectivo recibido, cálculo del cambio y confirmación.
 - **Ticket:** vista previa, impresión automática o manual y reimpresión desde el historial de la sesión.
+- **Cancelar venta:** desde el historial de la sesión abierta, con confirmación y motivo obligatorio.
 - **Cerrar caja (corte):** resumen por método de pago, efectivo esperado contra contado, diferencia e impresión del corte.
 
 **Criterios de aceptación**
@@ -891,6 +900,7 @@ sequenceDiagram
 - Al vender, el stock baja exactamente lo vendido, del rack de origen, y el kardex lo refleja.
 - Dos vendedores no pueden reservar la misma última unidad (test de concurrencia).
 - El ticket muestra los datos configurados en Ajustes y se imprime correctamente a 80 mm.
+- Una venta cancelada deja su stock en staging, el kardex lo refleja y su efectivo no cuenta en el corte. No se puede cancelar si la caja ya está cerrada.
 
 ---
 
@@ -902,7 +912,7 @@ sequenceDiagram
 - desglose por método de pago, por caja y por vendedor;
 - lista paginada de ventas.
 
-Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas.
+Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas. El tratamiento de las ventas canceladas en totales y listados se define en la spec F9.
 
 **UI:**
 - Filtro de rango de fechas con atajos (Hoy, Ayer, Últimos 7 días, Este mes).
@@ -950,7 +960,7 @@ Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas.
 |---|---|---|
 | Unitarias (shared) | Jest | Dinero, normalización de SKU, códigos de ubicación, clasificador de escaneo, esquemas Zod (casos válidos e inválidos). |
 | Unitarias (api) | Jest | Servicios de dominio con repositorios simulados: cálculo de capacidad, reglas de carrito, totales e impuestos de venta, permisos efectivos, rotación de tokens. |
-| Integración (api) | Jest + `fastify.inject` + Postgres de prueba (contenedor Docker dedicado; BD limpia por suite con transacciones o `TRUNCATE`) | Endpoints completos con BD real: auth, permisos 401/403, importación masiva, putaway/relocate, checkout. |
+| Integración (api) | Jest + `fastify.inject` + Postgres de prueba (servicio `postgres-test` en `docker-compose.dev.yml` desde F1; BD limpia por suite con transacciones o `TRUNCATE`) | Desde F1: migraciones, restricciones SQL y seed. Desde F2: endpoints completos con BD real (auth, permisos 401/403, importación masiva, putaway/relocate, checkout). |
 | Concurrencia | Jest (promesas en paralelo contra la BD real) | Dos reservas de la última unidad, dos putaway que exceden capacidad, folios sin duplicados. |
 | Componentes (web) | Jest + React Testing Library | Formularios con validación Zod, `ScanInput` (simulación de ráfaga HID), carrito, grid de importación. |
 | E2E (opcional, recomendado) | Playwright | Flujos críticos en viewport móvil y de escritorio. |
@@ -1004,7 +1014,7 @@ Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas.
 | **Niveles de rack (bins)** | Entidad `Bin` bajo `Rack` y sufijo `-N` en el código de ubicación. |
 | **Impresión directa** | Agente local o WebUSB/WebBluetooth ESC/POS. |
 | **Offline** | Cola de operaciones en IndexedDB para el almacén (escaneos) con sincronización. |
-| **Devoluciones y cancelaciones** | `Sale.status = CANCELLED` (ya existe), `SaleReturn` y movimiento `RETURN_FROM_SALE`. |
+| **Devoluciones y cancelación parcial** | La cancelación total con caja abierta ya está en el MVP (`SALE_CANCEL`). Después: `SaleReturn` (por partida, también con la caja cerrada) y el movimiento `RETURN_FROM_SALE`. |
 
 ---
 
@@ -1027,19 +1037,21 @@ Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas.
 
 Las respuestas pueden ajustar el modelo de datos de la Fase 1, así que conviene resolverlas antes de cerrarla.
 
-1. **Moneda e impuestos:** ¿moneda (MXN)? ¿Los precios incluyen IVA? ¿Tasa única (16 %)?
-2. **Facturación electrónica (CFDI):** ¿se necesita en el corto plazo? Se considera fuera del MVP.
-3. **Métodos de pago:** ¿efectivo, tarjeta y transferencia bastan? ¿Pagos mixtos? ¿Se registra la referencia del voucher?
-4. **Descuentos:** ¿se permiten en el POS? ¿Por partida, globales o ambos? ¿Quién los autoriza?
-5. **Devoluciones y cancelaciones** después de la venta: ¿se requieren en el MVP?
-6. **Hardware:** modelo de impresora térmica (58/80 mm, USB/Bluetooth/red), de lector de códigos y de impresora de etiquetas, y tamaño de etiqueta deseado.
-7. **Imágenes por variante:** ¿cada color tiene sus propias fotos?
-8. **Usuarios concurrentes** y volumen esperado: número de SKUs, de ventas al día y de racks.
-9. **Umbral de "stock bajo":** ¿global o por producto? ¿Valor por defecto?
-10. **Capacidad:** ¿se permite exceder la capacidad de un rack con autorización o se bloquea siempre?
-11. **Código de ubicación:** ¿aprueban el formato `A-01-03` con color como atributo (§5)?
-12. **Datos del cliente en la venta:** ¿se captura nombre o teléfono del comprador en el MVP?
-13. **Despliegue:** ¿VPS o servidor local? ¿Tienen dominio propio?
+| # | Pregunta | Respuesta (2026-10-01) |
+|---|---|---|
+| 1 | **Moneda e impuestos:** ¿moneda (MXN)? ¿Los precios incluyen IVA? ¿Tasa única (16 %)? | MXN, precios con IVA incluido y tasa única de 16 % por sucursal. |
+| 2 | **Facturación electrónica (CFDI):** ¿se necesita en el corto plazo? | Fuera del MVP; no se reservan campos. |
+| 3 | **Métodos de pago:** ¿efectivo, tarjeta y transferencia bastan? ¿Pagos mixtos? ¿Se registra la referencia del voucher? | Efectivo, tarjeta y transferencia; pago mixto; referencia opcional. |
+| 4 | **Descuentos:** ¿se permiten en el POS? ¿Por partida, globales o ambos? ¿Quién los autoriza? | Por partida y global, con `pos.discount`, guardados como monto en centavos. |
+| 5 | **Devoluciones y cancelaciones** después de la venta: ¿se requieren en el MVP? | Cancelación **total** en el MVP, con `pos.sale.cancel` (Administrador y Gerente) y solo mientras la caja de la venta siga abierta. El stock regresa a staging. Las devoluciones quedan post-MVP (§11). |
+| 6 | **Hardware:** modelo de impresora térmica (58/80 mm, USB/Bluetooth/red), de lector de códigos y de impresora de etiquetas, y tamaño de etiqueta deseado. | **Pendiente.** No bloquea F1; se resuelve antes de cerrar F3 y F8. |
+| 7 | **Imágenes por variante:** ¿cada color tiene sus propias fotos? | Opcional por variante; sin fotos propias, la variante usa las del producto. |
+| 8 | **Usuarios concurrentes** y volumen esperado: número de SKUs, de ventas al día y de racks. | **Pendiente.** No bloquea F1; se resuelve antes de F10. |
+| 9 | **Umbral de "stock bajo":** ¿global o por producto? ¿Valor por defecto? | Por sucursal (`Branch.lowStockThreshold`), 2 por defecto. |
+| 10 | **Capacidad:** ¿se permite exceder la capacidad de un rack con autorización o se bloquea siempre? | Se permite con `inventory.override_capacity`; el movimiento queda marcado. |
+| 11 | **Código de ubicación:** ¿aprueban el formato `A-01-03` con color como atributo (§5)? | Aprobado. |
+| 12 | **Datos del cliente en la venta:** ¿se captura nombre o teléfono del comprador en el MVP? | Solo nombre opcional. |
+| 13 | **Despliegue:** ¿VPS o servidor local? ¿Tienen dominio propio? | **Pendiente.** No bloquea F1; se resuelve antes de F10. |
 
 ---
 
