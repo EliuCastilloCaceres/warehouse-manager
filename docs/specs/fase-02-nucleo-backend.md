@@ -1,7 +1,7 @@
 ---
 id: fase-02
 titulo: Núcleo backend
-estado: BORRADOR
+estado: LISTA
 depende_de: [fase-01]
 autoriza_codigo_en:
   - "apps/api/package.json"
@@ -79,7 +79,7 @@ Referencias: plan §2.4 (arquitectura del backend), §3 (convenciones), §4.3 (r
 | Tema | Decisión |
 |---|---|
 | JWT | `@fastify/jwt`, HS256 con `JWT_SECRET` (≥ 32 caracteres). Vida de `ACCESS_TTL_MIN` (15). |
-| Claims del access token | `sub` (userId), `role` (código), `perms` (`PermissionCode[]` efectivos y ordenados), `branchIds` (sucursales activas con acceso; el Administrador recibe todas las activas), `defaultBranchId` (o `null`) y `mcp` (`mustChangePassword`). Decisión del usuario: los permisos viajan en el token. |
+| Claims del access token | `sub` (userId), `role` (código), `perms` (`PermissionCode[]` efectivos y ordenados), `branchIds` (sucursales activas con acceso; el Propietario y el Administrador reciben todas las activas), `defaultBranchId` (o `null`) y `mcp` (`mustChangePassword`). Decisión del usuario: los permisos viajan en el token. |
 | Permisos efectivos | Permisos del rol ∪ permisos extra del usuario, sin duplicados, ordenados y filtrados al catálogo de `shared`. Los calcula `effectivePermissions()`. |
 | Refresh token | 32 bytes aleatorios en base64url. En BD se guarda su SHA-256 (hex). Cookie `wm_rt`: `httpOnly`, `secure = COOKIE_SECURE`, `sameSite: 'strict'`, `path: '/api/v1/auth'` y `maxAge = REFRESH_TTL_DAYS`. |
 | Vencimiento del refresh | Ventana deslizante: cada token nuevo vence en `now + REFRESH_TTL_DAYS`. |
@@ -424,7 +424,7 @@ Los marcados con "int" corren contra `postgres-test` con `app.inject`. Para simu
 | T1 | `core/config.test.ts` | Con `DATABASE_URL` y `JWT_SECRET` válidos: defaults de §4 (15, 7, `true`, `uploads`, `false`), coerción de números y `COOKIE_SECURE='false'` → `false`. |
 | T2 | `core/config.test.ts` | `it.each`: lanza un error que nombra la variable si falta `DATABASE_URL`, si `JWT_SECRET` tiene 31 caracteres, si `REFRESH_TTL_DAYS=31`, si `ACCESS_TTL_MIN=0` o si `COOKIE_SECURE='si'`. |
 | T3 | `core/errors.test.ts` | Cada `ErrorCode` de `shared` tiene un estado HTTP y un mensaje en español; `DomainError` se serializa a un `ApiErrorDto` válido con el estado de la tabla de §6.1. |
-| T4 | `modules/auth/permissions.test.ts` | `effectivePermissions`: unión de rol y extras, sin duplicados, ordenada, descarta códigos ajenos al catálogo y respeta los 4 roles del sistema. |
+| T4 | `modules/auth/permissions.test.ts` | `effectivePermissions`: unión de rol y extras, sin duplicados, ordenada, descarta códigos ajenos al catálogo y respeta los 5 roles del sistema. |
 | T5 | `modules/auth/tokens.test.ts` | `generateRefreshToken` produce 43 caracteres base64url y valores distintos en cada llamada; `hashRefreshToken` es SHA-256 hex determinista. |
 | T6 | `core/pagination.test.ts` | `toPrismaPage({page:3,pageSize:20})` → `{skip:40,take:20}`; `toOrderBy` con orden por defecto y explícito; `buildPage` arma `{items,page,pageSize,total}`; `containsInsensitive`. |
 | T7 | `shared` · `auth.test.ts` | `LoginInput` normaliza `" Admin "` → `"admin"`. `ChangePasswordInput` rechaza menos de 8 y más de 128 caracteres, y una nueva igual a la actual (con `path` en `newPassword`). Las fixtures de `MeDto` y `AuthSessionDto` son válidas y se rechazan con un permiso inexistente. |
@@ -442,7 +442,7 @@ Los marcados con "int" corren contra `postgres-test` con `app.inject`. Para simu
 | T19 | `int` · `access.int.test.ts` | Sobre rutas de prueba: sin token → 401 `UNAUTHENTICATED`; firma inválida → 401; token sin el permiso → 403 `FORBIDDEN` con `details.permission`; con el permiso → 200; ruta `authenticated` con cualquier token válido → 200. |
 | T20 | `int` · `auth-password.int.test.ts` | Usuario con `mustChangePassword`: `GET /auth/me` 200, ruta protegida 403 `AUTH_PASSWORD_CHANGE_REQUIRED`, logout 204. |
 | T21 | `int` · `auth-password.int.test.ts` | Contraseña actual incorrecta → 400 `AUTH_PASSWORD_INCORRECT`; nueva igual a la actual → 400 `VALIDATION_ERROR`. Éxito → 200 `AuthSessionDto` con `mustChangePassword: false`; el refresh de **otra** sesión del mismo usuario → 401; la cookie nueva sí refresca; el token nuevo accede a la ruta protegida; la nueva contraseña verifica con argon2; hay `AuditLog` `auth.password_change`. |
-| T22 | `int` · `auth-claims.int.test.ts` | Admin: `branchIds` = todas las sucursales activas. Usuario `SELLER` con 1 permiso extra: `perms` = 7 + 1. Una sucursal inactiva no aparece. `defaultBranchId` corresponde a `isDefault`; `mcp` refleja `mustChangePassword`. |
+| T22 | `int` · `auth-claims.int.test.ts` | Propietario y Admin: `branchIds` = todas las sucursales activas. Usuario `SELLER` con 1 permiso extra: `perms` = 7 + 1. Una sucursal inactiva no aparece. `defaultBranchId` corresponde a `isDefault`; `mcp` refleja `mustChangePassword`. |
 | T23 | `int` · `branch-context.int.test.ts` | Ruta de prueba `branchScoped`: sin header → sucursal por defecto; con una sola sucursal y sin default → esa; header permitido → esa; header no permitido → 403 `BRANCH_FORBIDDEN`; header no UUID → 400 `VALIDATION_ERROR`; 2 sucursales sin default y sin header → 400 `BRANCH_REQUIRED`. |
 | T24 | `int` · `auth-me.int.test.ts` | `me` devuelve el `MeDto` leído de la BD (incluye un permiso extra agregado después del login). Usuario desactivado con un token aún vigente → 401. |
 | T25 | `int` · `auth-revoke.int.test.ts` | `revokeAllForUser(A)` revoca todos los tokens activos de A (de varias familias) y no toca los de B. |
@@ -501,10 +501,12 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T1,
 | 2026-10-02 | Uploads de hasta 10 MB, JPEG/PNG/WebP → WebP 1600 + miniatura 400, sin HEIC. | Usuario (chat); plan §8 F2 |
 | 2026-10-02 | En el audit de auth: login exitoso, cambio de contraseña y reutilización de refresh. | Usuario (chat); plan §8 F2 |
 | 2026-10-02 | Detección de reutilización estricta; la SPA serializa el refresh entre pestañas con Web Locks. | Usuario (chat); plan §6.1 y §8 F3 |
-| 2026-10-02 | `config.access` obligatorio por ruta, verificado con `onRoute`; `allowDuringPasswordChange` y `branchScoped` como opciones de ruta. | Propuesta del agente; revisar al aprobar |
-| 2026-10-02 | Claims adicionales `defaultBranchId` y `mcp`, para resolver la sucursal y el bloqueo sin consultar la BD. | Propuesta del agente; revisar al aprobar |
-| 2026-10-02 | Rate limit solo en auth (5/min en login, 30/min en refresh, 5/min en change-password); el global queda en F10. Helmet sin CSP en la API. `TRUST_PROXY` en `false` por defecto. | Propuesta del agente; revisar al aprobar |
-| 2026-10-02 | Dos rutas de upload con permiso estático (`product-images`, `branch-images`) en lugar de una con `entity` variable. | Propuesta del agente; revisar al aprobar |
-| 2026-10-02 | `AUTH_PASSWORD_INCORRECT` es 400 (no 401) para no disparar el refresh de la SPA. Las peticiones sin `Origin` se permiten. | Propuesta del agente; revisar al aprobar |
-| 2026-10-02 | `InventoryService` recibe el `tx` de quien llama; `TO_STAGING` consume unidades reservadas y `RELOCATE`, unidades disponibles; las filas de stock en 0 se conservan. | Propuesta del agente; revisar al aprobar |
-| 2026-10-02 | Se adaptan tests de F0 (T1, T3, T4, T5 y T7 de web) por el cambio de `HealthDto` y de la configuración (regresión declarada). | Propuesta del agente; revisar al aprobar |
+| 2026-10-02 | `config.access` obligatorio por ruta, verificado con `onRoute`; `allowDuringPasswordChange` y `branchScoped` como opciones de ruta. | Propuesta del agente; aprobada por el usuario (2026-10-02) |
+| 2026-10-02 | Claims adicionales `defaultBranchId` y `mcp`, para resolver la sucursal y el bloqueo sin consultar la BD. | Propuesta del agente; aprobada por el usuario (2026-10-02) |
+| 2026-10-02 | Rate limit solo en auth (5/min en login, 30/min en refresh, 5/min en change-password); el global queda en F10. Helmet sin CSP en la API. `TRUST_PROXY` en `false` por defecto. | Propuesta del agente; aprobada por el usuario (2026-10-02) |
+| 2026-10-02 | Dos rutas de upload con permiso estático (`product-images`, `branch-images`) en lugar de una con `entity` variable. | Propuesta del agente; aprobada por el usuario (2026-10-02) |
+| 2026-10-02 | `AUTH_PASSWORD_INCORRECT` es 400 (no 401) para no disparar el refresh de la SPA. Las peticiones sin `Origin` se permiten. | Propuesta del agente; aprobada por el usuario (2026-10-02) |
+| 2026-10-02 | `InventoryService` recibe el `tx` de quien llama; `TO_STAGING` consume unidades reservadas y `RELOCATE`, unidades disponibles; las filas de stock en 0 se conservan. | Propuesta del agente; aprobada por el usuario (2026-10-02) |
+| 2026-10-02 | Se adaptan tests de F0 (T1, T3, T4, T5 y T7 de web) por el cambio de `HealthDto` y de la configuración (regresión declarada). | Propuesta del agente; aprobada por el usuario (2026-10-02) |
+| 2026-10-02 | El usuario aprueba la spec completa, incluidas las propuestas del agente. Spec pasa a `LISTA`. | Usuario (chat) |
+| 2026-10-03 | Rol `OWNER` ("Propietario"): recibe todas las sucursales activas en `branchIds`, igual que el Administrador. Cambian §2 (claims) y los tests T4 y T22. | Usuario (chat), durante la redacción de F4; F1 §6.4 y plan §6.2 actualizados |

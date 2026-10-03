@@ -514,7 +514,7 @@ stateDiagram-v2
 | Cambiar contraseña | Revoca todas las familias y emite una sesión nueva en la misma respuesta: los demás dispositivos se cierran y el actual sigue activo. |
 | Cambio obligatorio | Mientras `mustChangePassword = true`, el servidor solo permite `/auth/me`, `/auth/change-password` y `/auth/logout`; el resto responde 403 `AUTH_PASSWORD_CHANGE_REQUIRED`. |
 | Fuerza bruta | `@fastify/rate-limit` en `/auth/login` (por ejemplo 5 intentos por minuto por IP+usuario). Mensaje de error genérico. |
-| Contraseñas | argon2id. Política mínima de 8 caracteres. Las credenciales generadas por el sistema usan un password aleatorio legible que se muestra **una sola vez**, junto con `mustChangePassword = true`. |
+| Contraseñas | argon2id. Política mínima de 8 caracteres. Al crear un usuario o restablecer su contraseña, el administrador elige entre generarla (password aleatorio legible que se muestra **una sola vez**) o escribirla; en los dos casos queda `mustChangePassword = true` (decisión 2026-10-03). |
 | CSRF | El riesgo es mínimo: el access token no viaja en cookie, y el refresh usa `SameSite=Strict` y una ruta limitada. Además, en `/auth/*`, si llega el header `Origin` y su host no coincide con `Host`, se responde 403. |
 | Cabeceras | `@fastify/helmet`. CORS cerrado, ya que se sirve en el mismo origen detrás de Nginx. |
 
@@ -537,13 +537,15 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
 
 | Rol | Permisos |
 |---|---|
+| **Propietario** (`OWNER`) | Todos, siempre (incluidos los que se agreguen al catálogo). Hay **exactamente uno**, creado por el seed (usuario `owner`); el rol no se asigna desde la app. Nadie más puede editarlo, desactivarlo ni restablecer su contraseña; él mismo solo edita sus datos y no puede degradarse. Si olvida la contraseña, se restablece con el comando de servidor `pnpm owner:reset-password` (decisión 2026-10-03). |
 | **Administrador** | Todos. |
 | **Gerente** | Todos excepto `users.permissions`. |
 | **Vendedor** | `products.read`, `warehouse.read`, `pos.*` excepto `pos.discount` y `pos.sale.cancel`, `inventory.relocate` (para regresar productos) y `reports.sales` (solo sus propias ventas). |
 | **Almacenista** | `products.read`, `products.labels`, `warehouse.*`, `inventory.putaway`, `inventory.relocate` e `inventory.movements.read`. |
 
 - En el backend, cada ruta declara `requirePermission('x.y')`. El frontend usa el mismo catálogo para ocultar menús y acciones (`<Can perm="x.y">`).
-- **Contexto de sucursal:** después del login, si el usuario tiene más de una sucursal, la elige; la elegida viaja en el header `X-Branch-Id`. Si el header no viene, se usa la sucursal por defecto del usuario (o la única que tenga) (decisión 2026-10-02). El plugin `branchContext` valida que el usuario tenga acceso (si no, 403 `BRANCH_FORBIDDEN`) y filtra las consultas. El Administrador tiene acceso a todas las sucursales activas.
+- **Escalada de privilegios** (decisión 2026-10-03): asignar el rol Administrador o permisos extra exige `users.permissions`, y nadie puede otorgar un permiso que no tiene.
+- **Contexto de sucursal:** después del login, si el usuario tiene más de una sucursal, la elige; la elegida viaja en el header `X-Branch-Id`. Si el header no viene, se usa la sucursal por defecto del usuario (o la única que tenga) (decisión 2026-10-02). El plugin `branchContext` valida que el usuario tenga acceso (si no, 403 `BRANCH_FORBIDDEN`) y filtra las consultas. El Propietario y el Administrador tienen acceso a todas las sucursales activas.
 
 ---
 
@@ -560,8 +562,8 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
 ### 7.2 Impresión
 | Documento | Implementación MVP |
 |---|---|
-| **Etiqueta de producto** | Vista HTML imprimible con imagen, nombre, variante (talla/color), precio opcional y código Code128 (JsBarcode, SVG). Tamaños predefinidos (por ejemplo 50×25 mm y 4×6") y hoja A4 con varias etiquetas. Permite seleccionar varias variantes y cantidades. |
-| **Etiqueta de ubicación** | Hoja con QR (`qrcode`), código grande y banda de color. Se puede imprimir por rack, contenedor, zona o todo el almacén. |
+| **Etiqueta de producto** | Vista HTML imprimible con imagen, nombre, variante (talla/color), precio opcional y código Code128 (JsBarcode, SVG). Tamaños predefinidos (por ejemplo 50×25 mm y 4×6") y hoja A4 o Carta con varias etiquetas. Permite seleccionar varias variantes y cantidades. |
+| **Etiqueta de ubicación** | Hoja A4 o Carta con QR (`qrcode`), código grande y banda de color. Se puede imprimir por rack, contenedor, zona o todo el almacén. |
 | **Ticket de venta** | HTML con CSS `@media print` y `@page { size: 80mm auto }` (opción de 58 mm). Incluye logo y datos de la sucursal, encabezado, folio, fecha, cajero, partidas, totales, impuestos, pagos y cambio, mensaje configurable y QR de promoción. Se imprime con `window.print()`. También se puede reimprimir desde el detalle de la venta. |
 
 > La impresión térmica directa (ESC/POS por WebUSB/Bluetooth o un agente local) queda para después del MVP. En el MVP se recomienda que la PC de caja tenga la impresora térmica instalada como impresora del sistema.
@@ -624,7 +626,7 @@ flowchart LR
   - vista `v_rack_occupancy`.
 - **Seed idempotente:**
   - catálogo de permisos y roles semilla;
-  - usuario `admin` (contraseña tomada de una variable de entorno, con `mustChangePassword`);
+  - usuario `owner` con el rol Propietario y usuario `admin` con el rol Administrador (contraseñas tomadas de variables de entorno, con `mustChangePassword`);
   - sucursal 1 y cajas 1 y 2;
   - almacén principal y zona `STG` con su contenedor y rack de staging;
   - categorías de ejemplo.
@@ -704,10 +706,10 @@ flowchart LR
 
 **API** (`/api/v1/users`, `/roles`, `/permissions`)
 - Listado con búsqueda y filtros (activo, rol, sucursal); detalle.
-- Crear usuario: datos, rol, sucursales y permisos extra. Opción de **generar credenciales** (username sugerido y password aleatorio, devuelto una sola vez).
+- Crear usuario: datos, rol, sucursales y permisos extra. Username sugerido (editable solo al crear) y contraseña **generada** (devuelta una sola vez) o **escrita** por el administrador.
 - Editar datos, rol, sucursales y permisos.
 - Desactivar/reactivar (revoca las sesiones).
-- **Restablecer contraseña** (genera una nueva y activa `mustChangePassword`).
+- **Restablecer contraseña** (generada o escrita; activa `mustChangePassword` y revoca las sesiones). La del Propietario solo se restablece con `pnpm owner:reset-password` en el servidor.
 - Listar roles con sus permisos y el catálogo de permisos agrupado por módulo.
 - Las acciones se registran en `AuditLog`.
 
@@ -724,6 +726,8 @@ flowchart LR
 - Un usuario creado puede iniciar sesión, se le pide cambiar la contraseña y solo ve los módulos permitidos.
 - Un usuario desactivado pierde el acceso de inmediato (como máximo cuando expira su access token, 15 minutos).
 - Ningún usuario puede quitarse a sí mismo `users.permissions` ni desactivarse.
+- Nadie, salvo el propio Propietario, puede modificarlo, y él no puede degradarse.
+- Ningún usuario puede asignar un rol o permiso que no tiene; el rol Administrador y los permisos extra exigen `users.permissions`.
 
 ---
 
@@ -987,7 +991,7 @@ Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas. El tratami
 | `nginx` | `nginx:alpine` + build de `apps/web` | `uploads` (solo lectura), `certs` | Sirve la SPA, hace proxy de `/api` y sirve `/uploads`. |
 | `backup` (opcional) | Imagen ligera con cron + `pg_dump` | `backups` | Respaldo diario con retención de 14 días. |
 
-- Variables en `.env` (no versionado; se incluye un `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `REFRESH_TTL_DAYS`, `ACCESS_TTL_MIN`, `ADMIN_INITIAL_PASSWORD`, `UPLOADS_DIR`, `PUBLIC_URL` y `COOKIE_SECURE`.
+- Variables en `.env` (no versionado; se incluye un `.env.example`): `DATABASE_URL`, `JWT_SECRET`, `REFRESH_TTL_DAYS`, `ACCESS_TTL_MIN`, `OWNER_INITIAL_PASSWORD`, `ADMIN_INITIAL_PASSWORD`, `UPLOADS_DIR`, `PUBLIC_URL` y `COOKIE_SECURE`.
 
 ### 10.2 VPS vs. servidor local
 
@@ -1048,7 +1052,7 @@ Las respuestas pueden ajustar el modelo de datos de la Fase 1, así que conviene
 | 3 | **Métodos de pago:** ¿efectivo, tarjeta y transferencia bastan? ¿Pagos mixtos? ¿Se registra la referencia del voucher? | Efectivo, tarjeta y transferencia; pago mixto; referencia opcional. |
 | 4 | **Descuentos:** ¿se permiten en el POS? ¿Por partida, globales o ambos? ¿Quién los autoriza? | Por partida y global, con `pos.discount`, guardados como monto en centavos. |
 | 5 | **Devoluciones y cancelaciones** después de la venta: ¿se requieren en el MVP? | Cancelación **total** en el MVP, con `pos.sale.cancel` (Administrador y Gerente) y solo mientras la caja de la venta siga abierta. El stock regresa a staging. Las devoluciones quedan post-MVP (§11). |
-| 6 | **Hardware:** modelo de impresora térmica (58/80 mm, USB/Bluetooth/red), de lector de códigos y de impresora de etiquetas, y tamaño de etiqueta deseado. | **Pendiente.** No bloquea F1; se resuelve antes de cerrar F3 y F8. |
+| 6 | **Hardware:** modelo de impresora térmica (58/80 mm, USB/Bluetooth/red), de lector de códigos y de impresora de etiquetas, y tamaño de etiqueta deseado. | Respondida 2026-10-03. Tickets: Epson TM-T20III (80 mm, 72 mm imprimibles). Lector: modelo no identificado, USB por cable y Bluetooth con receptor USB, ambos como teclado (HID). Etiquetas: Ribetec RT-420ME (térmica 4", 203 dpi) para 50×25 mm y 4×6", y hojas A4 o Carta en una impresora normal. Tamaños de §7.2 confirmados. |
 | 7 | **Imágenes por variante:** ¿cada color tiene sus propias fotos? | Opcional por variante; sin fotos propias, la variante usa las del producto. |
 | 8 | **Usuarios concurrentes** y volumen esperado: número de SKUs, de ventas al día y de racks. | **Pendiente.** No bloquea F1; se resuelve antes de F10. |
 | 9 | **Umbral de "stock bajo":** ¿global o por producto? ¿Valor por defecto? | Por sucursal (`Branch.lowStockThreshold`), 2 por defecto. |

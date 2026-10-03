@@ -703,10 +703,11 @@ Los 9 enums de §4.1, con el mismo nombre y los mismos valores, por ejemplo `exp
 
 Formato de código: `^[a-z]+(\.[a-z_]+)+$`, y el primer segmento es su `module`.
 
-`SystemRoleCode = z.enum(['ADMIN', 'MANAGER', 'SELLER', 'WAREHOUSE_CLERK'])`. `SYSTEM_ROLES`:
+`SystemRoleCode = z.enum(['OWNER', 'ADMIN', 'MANAGER', 'SELLER', 'WAREHOUSE_CLERK'])`. `SYSTEM_ROLES`:
 
 | Código | Nombre | Permisos |
 |---|---|---|
+| `OWNER` | Propietario | Todos los del catálogo (24), derivados de `PERMISSIONS`, para que un permiso nuevo se incluya solo |
 | `ADMIN` | Administrador | Los 24 |
 | `MANAGER` | Gerente | Los 24 excepto `users.permissions` (23) |
 | `SELLER` | Vendedor | `products.read`, `warehouse.read`, `pos.session.open`, `pos.session.close`, `pos.sell`, `inventory.relocate` y `reports.sales` (7) |
@@ -814,7 +815,7 @@ apps/api/prisma/
     └── demo.ts          # seedDemo(prisma): Promise<SeedSummary>
 ```
 
-`parseSeedEnv` exige `DATABASE_URL` y `ADMIN_INITIAL_PASSWORD` (≥ 8 caracteres). Si alguna falla, lanza un error en español que nombra la variable, y la entrada termina con código 1. `seed-demo.ts` solo exige `DATABASE_URL`.
+`parseSeedEnv` exige `DATABASE_URL`, `OWNER_INITIAL_PASSWORD` y `ADMIN_INITIAL_PASSWORD` (ambas ≥ 8 caracteres). Si alguna falla, lanza un error en español que nombra la variable, y la entrada termina con código 1. `seed-demo.ts` solo exige `DATABASE_URL`.
 
 ### 7.2 Seed base (idempotente, en una sola transacción)
 
@@ -829,6 +830,7 @@ apps/api/prisma/
 | Zona de staging | (`ALM1`, `STG`) | `name "Staging"`, `isStaging true` | No se toca. |
 | Contenedor de staging | (`STG`, `01`) | `name "Staging"` | No se toca. |
 | Rack de staging | (contenedor, `01`) | `locationCode "STG-01-01"`, `capacityUnits 0` | No se toca. |
+| Usuario `owner` | `username` | `fullName "Propietario"`, rol `OWNER`, hash argon2id de `OWNER_INITIAL_PASSWORD`, `mustChangePassword true` y `UserBranch(S1, isDefault true)`. | No se toca; **nunca** se restablece su contraseña (para eso existe el comando de F4). |
 | Usuario `admin` | `username` | `fullName "Administrador"`, rol `ADMIN`, hash argon2id de `ADMIN_INITIAL_PASSWORD`, `mustChangePassword true` y `UserBranch(S1, isDefault true)`. | No se toca; **nunca** se restablece su contraseña. |
 | Categorías raíz | (`null`, `name`) | `Calzado`, `Bolsos` y `Accesorios` | No se tocan. |
 
@@ -869,7 +871,8 @@ En total son 4 productos y 14 variantes. No crea imágenes, `StockLocation` ni `
 ```
 # Pruebas de integración (servicio postgres-test)
 TEST_DATABASE_URL=postgresql://warehouse:warehouse@localhost:5433/warehouse_test
-# Seed: contraseña inicial del usuario admin (mín. 8 caracteres; se pide cambiarla al entrar)
+# Seed: contraseñas iniciales del Propietario (owner) y del admin (mín. 8 caracteres; se pide cambiarlas al entrar)
+OWNER_INITIAL_PASSWORD=cambia-esta-clave-owner
 ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 ```
 
@@ -899,7 +902,7 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 1. **Seed sin variables:** falla antes de conectarse, nombra la variable faltante y no escribe nada.
 2. **Seed parcial:** el seed base corre en una transacción; si algo falla, no queda nada a medias.
 3. **Permiso retirado del catálogo:** el seed lo borra junto con sus asignaciones. Un permiso nuevo en el catálogo se crea y se asigna a los roles del sistema que lo incluyan.
-4. **Ediciones del usuario:** el seed no sobrescribe datos editables (sucursal, cajas, almacén, admin, categorías). Solo sincroniza permisos y roles del sistema, que no son editables en el MVP (F4 solo los lista).
+4. **Ediciones del usuario:** el seed no sobrescribe datos editables (sucursal, cajas, almacén, `owner`, `admin`, categorías). Solo sincroniza permisos y roles del sistema, que no son editables en el MVP (F4 solo los lista).
 5. **BD de pruebas equivocada:** el `globalSetup` aborta si `TEST_DATABASE_URL` no termina en `_test` o si coincide con `DATABASE_URL`.
 6. **Escaneo con basura de lector HID** (`"\r\n"` al final, tab): `classifyScan` la limpia.
 7. **Captura manual de ubicación** `"a-1-3"`: se normaliza a `A-01-03`. `"A-00-01"`, `"A-100-01"` y `"ABC-01-01"` son inválidos.
@@ -959,7 +962,7 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
   - Crear `prisma/seed/demo.ts` y `prisma/seed-demo.ts`, junto con los tests **T24–T25**.
   - *Verificable:* T24–T25 en verde.
 - [ ] **13. Scripts raíz y README.**
-  - Agregar `db:migrate`, `db:seed` y `seed:demo` a la raíz. En el README: migrar, sembrar, cambiar `ADMIN_INITIAL_PASSWORD`, aclarar que `pnpm test` requiere `pnpm dev:db` y explicar cómo resetear la BD de desarrollo.
+  - Agregar `db:migrate`, `db:seed` y `seed:demo` a la raíz. En el README: migrar, sembrar, cambiar `OWNER_INITIAL_PASSWORD` y `ADMIN_INITIAL_PASSWORD`, aclarar que `pnpm test` requiere `pnpm dev:db` y explicar cómo resetear la BD de desarrollo.
   - *Verificable:* el usuario sigue el README desde una BD vacía.
 - [ ] **14. ERD.**
   - Crear `docs/erd.md` con los diagramas mermaid de organización/seguridad, catálogo/almacén y POS, con todos los campos de §4.
@@ -983,10 +986,10 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 | T7 | `shared` · `scanClassifier.test.ts` | `it.each`: `"LOC:A-01-03"` → location; `"loc:a-1-3\r\n"` → location `A-01-03`; `" zap0101-25-neg\t"` → product `ZAP0101-25-NEG`; `"7501234567890"` → product; `"LOC:XYZ"` → invalid; `""` → invalid; `"ZAP 01"` → invalid. |
 | T8 | `shared` · `pagination.test.ts` | Defaults (page 1, pageSize 20); coerción desde strings; rechazo de page 0, pageSize 0 y pageSize 101; `q: ""` → `undefined`; `sortQuery(['name','sku'])` acepta `"name:asc"` y rechaza `"price:asc"` y `"name:up"`; `paginated(X)` valida `items` y `total`. |
 | T9 | `shared` · `errors.test.ts` | `ApiErrorDto` acepta `{code:'NOT_FOUND', message:'…'}` (con y sin `details`); rechaza un código desconocido y un mensaje vacío. |
-| T10 | `shared` · `permissions.test.ts` | 24 códigos únicos con el formato de §6.4, cuyo primer segmento es su `module` y está en `PERMISSION_MODULES`. Los conjuntos de `SYSTEM_ROLES` son exactamente los de §6.4 (24/23/7/8) y solo contienen códigos del catálogo. |
+| T10 | `shared` · `permissions.test.ts` | 24 códigos únicos con el formato de §6.4, cuyo primer segmento es su `module` y está en `PERMISSION_MODULES`. Los conjuntos de `SYSTEM_ROLES` son exactamente los de §6.4 (24/24/23/7/8) y solo contienen códigos del catálogo; `OWNER` es igual a todo `PERMISSIONS`. |
 | T11 | `shared` · `dto/dto.test.ts` | `it.each` sobre los 22 DTOs: la fixture válida pasa; se rechaza con `id` no UUID, con fecha no ISO y, en los DTOs con dinero, con un monto decimal. Cada campo nullable acepta `null`. |
 | T12 | `api` · `src/core/password.test.ts` | `hashPassword` produce `$argon2id$…`; `verifyPassword` da `true` con la contraseña correcta y `false` con otra; dos hashes de la misma contraseña son distintos. |
-| T13 | `api` · `test/unit/seed-env.test.ts` | `parseSeedEnv` acepta un env válido y lanza error que nombra la variable si falta `DATABASE_URL`, si falta `ADMIN_INITIAL_PASSWORD` o si esta tiene menos de 8 caracteres (`it.each`). |
+| T13 | `api` · `test/unit/seed-env.test.ts` | `parseSeedEnv` acepta un env válido y lanza error que nombra la variable si falta `DATABASE_URL`, si falta `OWNER_INITIAL_PASSWORD` o `ADMIN_INITIAL_PASSWORD`, o si alguna tiene menos de 8 caracteres (`it.each`). |
 | T14 | `api` · `test/parity/enums.test.ts` | Cada uno de los 9 enums de `shared` coincide (mismo conjunto de valores) con el enum homónimo de `schema.prisma`, y no hay enums de Prisma sin contraparte. |
 | T15 | `api` · `test/parity/dtos.test.ts` | Para cada uno de los 22 DTOs: sus claves son exactamente los campos escalares del modelo menos las exclusiones de §6.11, y un campo es `nullable` si y solo si es opcional en Prisma. Los modelos sin DTO son exactamente los 6 declarados. |
 | T16 | `api` · `test/integration/migrations.int.test.ts` | Tras el `globalSetup`, las 2 migraciones están aplicadas (`finished_at` no nulo) y `prisma migrate diff` (BD contra schema, `--exit-code`) no reporta diferencias. |
@@ -994,8 +997,8 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 | T18 | `api` · `test/integration/unique-indexes.int.test.ts` | §5.2: la segunda sesión `OPEN` de una caja falla, pero `OPEN` en otra caja y `OPEN` + `CLOSED` en la misma pasan; el segundo `isDefault` de un usuario falla; la segunda zona de staging falla; una categoría raíz duplicada falla; una variante con atributos nulos duplicada falla; el mismo `locationCode` falla en el mismo almacén y pasa en otro. |
 | T19 | `api` · `test/integration/kardex.int.test.ts` | `INSERT` en `inventory_movement` funciona; `UPDATE` y `DELETE` fallan con "inventory_movement es inmutable". |
 | T20 | `api` · `test/integration/rack-occupancy.int.test.ts` | Un rack con dos `stock_location` (5/1 y 3/0) da `occupied_units` 8, `reserved_units` 1 y `free_units` = capacidad − 8; un rack sin stock da 0/0/capacidad. |
-| T21 | `api` · `test/integration/seed-base.int.test.ts` | Sobre una BD vacía: 24 permisos; 4 roles del sistema con 24/23/7/8 permisos; sucursal `S1` con los defaults de §7.2; contador en 0; cajas `C1`/`C2`; `ALM1`; zona `STG` (`isStaging`), contenedor `01` y rack `STG-01-01`; `admin` con rol `ADMIN`, `mustChangePassword` y un hash que verifica con la contraseña dada; `UserBranch` por defecto en `S1`; 3 categorías raíz. |
-| T22 | `api` · `test/integration/seed-base.int.test.ts` | Correr el seed 2 veces deja los mismos conteos y los mismos ids. Tras editar el nombre de la sucursal y el de `C1`, y tras cambiar el hash de `admin`, la segunda corrida conserva los tres cambios. |
+| T21 | `api` · `test/integration/seed-base.int.test.ts` | Sobre una BD vacía: 24 permisos; 5 roles del sistema con 24/24/23/7/8 permisos; `owner` con rol `OWNER`, `mustChangePassword` y un hash que verifica con `OWNER_INITIAL_PASSWORD`; sucursal `S1` con los defaults de §7.2; contador en 0; cajas `C1`/`C2`; `ALM1`; zona `STG` (`isStaging`), contenedor `01` y rack `STG-01-01`; `admin` con rol `ADMIN`, `mustChangePassword` y un hash que verifica con la contraseña dada; `UserBranch` por defecto en `S1` para `owner` y `admin`; 3 categorías raíz. |
+| T22 | `api` · `test/integration/seed-base.int.test.ts` | Correr el seed 2 veces deja los mismos conteos y los mismos ids. Tras editar el nombre de la sucursal y el de `C1`, y tras cambiar los hashes de `owner` y `admin`, la segunda corrida conserva los cuatro cambios. |
 | T23 | `api` · `test/integration/seed-base.int.test.ts` | Tras quitar un permiso de `SELLER`, agregarle uno extra e insertar un permiso ajeno al catálogo (asignado a un usuario), la corrida restaura los conjuntos exactos de los roles y borra el permiso ajeno junto con sus asignaciones. |
 | T24 | `api` · `test/integration/seed-demo.int.test.ts` | Tras el seed base, el seed de demo crea 3 zonas, 6 contenedores y 24 racks (de `A-01-01` a `C-02-04`, con capacidad 40), 2 marcas, 4 productos y 14 variantes (`ACC0301` con su variante por defecto), y deja 0 `stock_location` y 0 `inventory_movement`. Una segunda corrida no duplica nada. |
 | T25 | `api` · `test/integration/seed-demo.int.test.ts` | Sin seed base, el seed de demo lanza el error "Ejecuta primero `pnpm db:seed`" y no escribe ninguna fila. |
@@ -1044,3 +1047,4 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-01 | `UserType` solo tiene `STAFF` (constitución P2: nada del roadmap). | Propuesta del agente; plan §4.2 actualizado |
 | 2026-10-01 | `User` → tabla `app_user`; sin `created_by_id`; `Rack.warehouseId` desnormalizado; `CHECK` de forma del kardex y trigger de inmutabilidad. | Propuesta del agente; revisar al aprobar |
 | 2026-10-02 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
+| 2026-10-03 | Nuevo rol del sistema `OWNER` ("Propietario"), único, con todos los permisos del catálogo. El seed crea el usuario aparte `owner` con `OWNER_INITIAL_PASSWORD`; `admin` sigue como Administrador. Cambian §6.4, §7, §8 y los tests T10, T13, T21 y T22. | Usuario (chat), durante la redacción de F4; plan §6.2, §8 F1 y §10.1 actualizados |
