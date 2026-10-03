@@ -505,15 +505,17 @@ stateDiagram-v2
 ### 6.1 Autenticación
 | Elemento | Decisión |
 |---|---|
-| Access token | JWT firmado (HS256 con secreto de ≥ 32 bytes, o EdDSA). Vida de **15 minutos**. Se devuelve en el body y se guarda **en memoria** en la SPA. Se envía como `Authorization: Bearer`. Claims: `sub`, `role`, `perms` (o una versión de permisos), `branchIds`. |
-| Refresh token | Valor aleatorio opaco (no JWT) en una cookie `httpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`. Vida de 7 días (configurable hasta 30). En BD solo se guarda su hash. |
+| Access token | JWT firmado (HS256 con secreto de ≥ 32 bytes, o EdDSA). Vida de **15 minutos**. Se devuelve en el body y se guarda **en memoria** en la SPA. Se envía como `Authorization: Bearer`. Claims: `sub`, `role`, `perms` y `branchIds` (decisión 2026-10-02: los permisos viajan en el token, así que un cambio de permisos o una desactivación tarda hasta 15 min en surtir efecto). |
+| Refresh token | Valor aleatorio opaco (no JWT) de 32 bytes en la cookie `wm_rt` (`httpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`). En BD solo se guarda su SHA-256. Vida de 7 días (`REFRESH_TTL_DAYS`, hasta 30) en **ventana deslizante**: cada rotación renueva el plazo. |
 | Rotación | Cada `/auth/refresh` emite un nuevo refresh token y revoca el anterior (`replacedById`). |
-| Detección de reutilización | Si llega un refresh ya revocado, se revoca **toda la familia** (`familyId`) y se fuerza un nuevo login. |
+| Detección de reutilización | Si llega un refresh ya revocado, se revoca **toda la familia** (`familyId`) y se fuerza un nuevo login. Es estricta, sin periodo de gracia; la SPA serializa el refresh entre pestañas (F3). |
 | Logout | Revoca el refresh actual y limpia la cookie. |
-| Desactivar usuario o cambiar contraseña | Revoca todas las familias del usuario. |
+| Desactivar usuario | Revoca todas las familias del usuario. |
+| Cambiar contraseña | Revoca todas las familias y emite una sesión nueva en la misma respuesta: los demás dispositivos se cierran y el actual sigue activo. |
+| Cambio obligatorio | Mientras `mustChangePassword = true`, el servidor solo permite `/auth/me`, `/auth/change-password` y `/auth/logout`; el resto responde 403 `AUTH_PASSWORD_CHANGE_REQUIRED`. |
 | Fuerza bruta | `@fastify/rate-limit` en `/auth/login` (por ejemplo 5 intentos por minuto por IP+usuario). Mensaje de error genérico. |
 | Contraseñas | argon2id. Política mínima de 8 caracteres. Las credenciales generadas por el sistema usan un password aleatorio legible que se muestra **una sola vez**, junto con `mustChangePassword = true`. |
-| CSRF | El riesgo es mínimo: el access token no viaja en cookie, y el refresh usa `SameSite=Strict` y una ruta limitada. Además se verifica el header `Origin` en `/auth/*`. |
+| CSRF | El riesgo es mínimo: el access token no viaja en cookie, y el refresh usa `SameSite=Strict` y una ruta limitada. Además, en `/auth/*`, si llega el header `Origin` y su host no coincide con `Host`, se responde 403. |
 | Cabeceras | `@fastify/helmet`. CORS cerrado, ya que se sirve en el mismo origen detrás de Nginx. |
 
 **Endpoints de autenticación:** `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` y `POST /auth/change-password`.
@@ -541,7 +543,7 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
 | **Almacenista** | `products.read`, `products.labels`, `warehouse.*`, `inventory.putaway`, `inventory.relocate` e `inventory.movements.read`. |
 
 - En el backend, cada ruta declara `requirePermission('x.y')`. El frontend usa el mismo catálogo para ocultar menús y acciones (`<Can perm="x.y">`).
-- **Contexto de sucursal:** después del login, si el usuario tiene más de una sucursal, la elige; la elegida viaja en el header `X-Branch-Id`. El plugin `branchContext` valida que el usuario tenga acceso y filtra las consultas. El Administrador tiene acceso a todas.
+- **Contexto de sucursal:** después del login, si el usuario tiene más de una sucursal, la elige; la elegida viaja en el header `X-Branch-Id`. Si el header no viene, se usa la sucursal por defecto del usuario (o la única que tenga) (decisión 2026-10-02). El plugin `branchContext` valida que el usuario tenga acceso (si no, 403 `BRANCH_FORBIDDEN`) y filtra las consultas. El Administrador tiene acceso a todas las sucursales activas.
 
 ---
 
@@ -656,8 +658,9 @@ flowchart LR
   - `cookie`.
 - Módulo **auth**: login, refresh con rotación y detección de reutilización, logout, `me` (usuario, permisos efectivos y sucursales) y cambio de contraseña (obligatorio si `mustChangePassword`).
 - Utilidades de paginación, ordenamiento y búsqueda.
-- **Uploads:** endpoint genérico de imágenes (multipart, validación de tipo y tamaño, `sharp` → `webp` en tamaño normal y miniatura, guardado en `/uploads/{entidad}/{uuid}.webp`), con una interfaz `StorageService` para cambiar a S3/MinIO en el futuro.
-- `AuditService` (registro de acciones).
+- **Uploads:** endpoint genérico de imágenes (multipart; JPEG/PNG/WebP de hasta 10 MB, con el tipo validado por contenido; `sharp` → `webp` de 1600 px y miniatura de 400 px; guardado en `/uploads/{entidad}/{uuid}.webp`), con una interfaz `StorageService` para cambiar a S3/MinIO en el futuro. HEIC no se admite (decisión 2026-10-02).
+- `AuditService` (registro de acciones). En auth registra el login exitoso, el cambio de contraseña y la reutilización de refresh detectada; los logins fallidos solo van al log.
+- Cada ruta declara su acceso (`public`, `authenticated` o un permiso). La API no arranca si alguna ruta no lo declara.
 - `InventoryService` base: operaciones atómicas de stock con kardex. Aquí se implementa solo el núcleo y sus tests; sus endpoints llegan en F7 y F8.
 - Swagger agrupado por tags, con esquema de seguridad Bearer.
 
@@ -673,9 +676,10 @@ flowchart LR
 **Entregables**
 - Cliente HTTP (fetch) con:
   - inyección del access token;
-  - **refresh automático único** ante un 401 (cola de peticiones mientras se refresca);
+  - **refresh automático único** ante un 401 (cola de peticiones mientras se refresca), **serializado también entre pestañas** con la Web Locks API, porque el backend revoca la familia ante cualquier reutilización (decisión 2026-10-02);
   - parseo del error estándar.
-- `AuthProvider`, ruta `/login`, pantalla de cambio de contraseña obligatoria y **logout**.
+- `AuthProvider`, ruta `/login`, pantalla de cambio de contraseña obligatoria (también cuando la API responde `AUTH_PASSWORD_CHANGE_REQUIRED`) y **logout**.
+- Proxy `/uploads` en el servidor de desarrollo de Vite.
 - Restauración de sesión al recargar (llamada a `refresh` al iniciar).
 - Rutas protegidas por permiso, componente `<Can>` y menú filtrado por permisos.
 - Selector de sucursal (cuando el usuario tiene más de una) y su persistencia.

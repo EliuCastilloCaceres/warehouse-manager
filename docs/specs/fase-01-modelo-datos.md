@@ -1,7 +1,7 @@
 ---
 id: fase-01
 titulo: Modelo de datos y contratos compartidos
-estado: BORRADOR
+estado: LISTA
 depende_de: [fase-00]
 autoriza_codigo_en:
   - "package.json"
@@ -1043,3 +1043,4 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-01 | `Sale` guarda una copia de `taxRateBp` y `pricesIncludeTax`, y `globalDiscount` aparte de `discountTotal`; `Cart.discount` para el descuento global. | Propuesta del agente (derivada de §13.1 y §13.4); revisar al aprobar |
 | 2026-10-01 | `UserType` solo tiene `STAFF` (constitución P2: nada del roadmap). | Propuesta del agente; plan §4.2 actualizado |
 | 2026-10-01 | `User` → tabla `app_user`; sin `created_by_id`; `Rack.warehouseId` desnormalizado; `CHECK` de forma del kardex y trigger de inmutabilidad. | Propuesta del agente; revisar al aprobar |
+| 2026-10-02 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
