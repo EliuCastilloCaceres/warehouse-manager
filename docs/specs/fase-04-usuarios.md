@@ -1,7 +1,7 @@
 ---
 id: fase-04
 titulo: Usuarios y permisos
-estado: BORRADOR
+estado: LISTA
 depende_de: [fase-03]
 autoriza_codigo_en:
   - "apps/api/package.json"
@@ -30,7 +30,7 @@ fuera_de_alcance:
   - "Pantalla de perfil propio para usuarios sin users.manage"
   - "Recuperación de contraseña por correo o SMS"
   - "Alta y baja de sucursales (F5 solo las edita; multi-sucursal completa es post-MVP)"
-  - "Filtrar usuarios por la sucursal del administrador (en el MVP hay una sola sucursal)"
+  - "Filtrar usuarios por la sucursal del administrador (post-MVP; la lista muestra los usuarios de todas las sucursales)"
   - "Bloqueo de cuentas por intentos fallidos más allá del rate limit de F2"
   - "Cambios a schema.prisma o migraciones (el modelo es de F1; si hiciera falta, se pregunta)"
 tests_requeridos_total: 33
@@ -88,7 +88,7 @@ Sin cambios de schema. Usa `User`, `Role`, `Permission`, `RolePermission`, `User
 |---|---|
 | Módulo | `apps/api/src/modules/users/` con `users.routes.ts`, `roles.routes.ts` (roles y catálogo), `users.service.ts`, `users.repository.ts` y `ownerReset.ts`. Tag de Swagger `users`. Ninguna ruta es `branchScoped`. |
 | Reglas puras en `shared` | `isWithinScope`, `missingPermissions` e `isAssignableRole` viven en `packages/shared/src/users.ts`. La API las usa para decidir y la web para deshabilitar controles; la API es la autoridad. |
-| Alcance | Quien no es el propio usuario solo actúa sobre usuarios cuyos permisos efectivos ⊆ los suyos. Si no → 403 `USER_OUT_OF_SCOPE`. Con `ADMIN` (24) un Administrador gestiona a otros Administradores; un Gerente (23) no. |
+| Alcance | Quien no es el propio usuario solo actúa sobre usuarios cuyos permisos efectivos ⊆ los suyos. Si no → 403 `USER_OUT_OF_SCOPE`. Con `ADMIN` (25) un Administrador gestiona a otros Administradores; un Gerente (24) no. |
 | Escalada: rol | Un rol se asigna solo si sus permisos ⊆ los del actor. Si no → 403 `PERMISSION_ESCALATION` con `details.permissions` (los que faltan). Así, asignar `ADMIN` exige `users.permissions` (decisión del usuario). |
 | Escalada: extras | Cambiar `extraPermissions` (incluido enviarlo no vacío al crear) exige `users.permissions` → si no, 403 `FORBIDDEN` con `details.permission: 'users.permissions'` (formato de F2). Los extras deben ⊆ los permisos del actor → si no, `PERMISSION_ESCALATION`. |
 | Escalada: sucursales | Solo se asignan sucursales que el actor tiene en sus claims (`branchIds`; el Propietario y el Administrador tienen todas las activas). Si no → 403 `BRANCH_FORBIDDEN` (F2). |
@@ -299,7 +299,7 @@ En escritorio, `DataTable` con columnas Nombre, Usuario, Rol, Sucursales, Estado
 
 1. **Gerente intenta crear un Administrador:** 403 `PERMISSION_ESCALATION` con `details.permissions: ['users.permissions']`.
 2. **Administrador intenta asignar el rol Propietario:** 403 `USER_OWNER_PROTECTED`.
-3. **Cualquiera intenta modificar al Propietario:** 403 `USER_OWNER_PROTECTED`, también un Administrador con los 24 permisos.
+3. **Cualquiera intenta modificar al Propietario:** 403 `USER_OWNER_PROTECTED`, también un Administrador con los 25 permisos.
 4. **El Propietario edita sus datos:** permitido (`fullName`, `email`, `phone`); su rol, sucursales y estado no cambian.
 5. **Usuario desactivado:** sus refresh tokens se revocan en la misma transacción; su access token vigente sirve hasta que vence (≤ 15 min, F2 §9.3). No puede iniciar sesión.
 6. **Restablecer contraseña:** revoca todas las sesiones del usuario y activa `mustChangePassword`.
@@ -384,7 +384,7 @@ Los marcados con "int" corren contra `postgres-test` con `app.inject`, sobre el 
 | T19 | `int` · `users-status.int.test.ts` | `reset-password` con `generate` y con `manual`: `mustChangePassword: true`; todas sus sesiones revocadas; la contraseña anterior falla y la nueva funciona; `generatedPassword` solo en modo `generate`. |
 | T20 | `int` · `users-update.int.test.ts` | Tras agregar un extra a un usuario con sesión abierta, sus tokens **no** se revocan y su siguiente `POST /auth/refresh` trae el permiso en `perms` y en `me.permissions`. |
 | T21 | `int` · `users-create.int.test.ts` | `GET /users/suggest-username?fullName=Juan Pérez` → `jperez`; con `jperez` existente → `jperez2`; con `jperez` y `jperez2` → `jperez3`; `fullName=Lu` → `null`; un SELLER → 403. |
-| T22 | `int` · `users-read.int.test.ts` | `GET /roles` devuelve los 5 roles en el orden de §6 con sus permisos; `assignable` para un MANAGER: MANAGER, SELLER y WAREHOUSE_CLERK `true`, ADMIN y OWNER `false`; para un ADMIN: ADMIN `true` y OWNER `false`. `GET /permissions` → 7 grupos y 24 permisos en orden. |
+| T22 | `int` · `users-read.int.test.ts` | `GET /roles` devuelve los 5 roles en el orden de §6 con sus permisos; `assignable` para un MANAGER: MANAGER, SELLER y WAREHOUSE_CLERK `true`, ADMIN y OWNER `false`; para un ADMIN: ADMIN `true` y OWNER `false`. `GET /permissions` → 7 grupos y 25 permisos en orden. |
 | T23 | `int` · `users-audit.int.test.ts` | Crear, editar, desactivar, reactivar y restablecer generan su `AuditLog` (`action`, `userId` del actor, `entity: 'User'`, `entityId`, `ip`); `user.update` trae solo los campos cambiados; ningún `payload` contiene la contraseña (ni la generada ni la manual). |
 | T24 | `int` · `users-owner-reset.int.test.ts` | `resetOwnerPassword(prisma)`: devuelve una contraseña con el formato de T7 que verifica contra el hash; `mustChangePassword: true`; las sesiones de `owner` quedan revocadas; hay `AuditLog` `user.owner_password_reset` con `userId: null`. Sin Propietario lanza "No existe un Propietario. Ejecuta primero `pnpm db:seed`." sin escribir. |
 | T25 | `web` · `UsersListPage.test.tsx` | Muestra los usuarios del API simulado; escribir en la búsqueda dispara una consulta con `q` (con *debounce*); los filtros cambian la query; "Nuevo usuario" solo aparece con `users.manage`; la fila del Propietario lleva la etiqueta "Propietario". |
@@ -441,3 +441,5 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | 2026-10-03 | Contraseña generada: 12 caracteres sin ambiguos en 3 grupos con guion. Username sugerido: inicial del nombre + segunda palabra, con sufijo numérico si existe. | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | Cambios de rol, permisos o sucursales no revocan sesiones (se aplican en el siguiente refresh); desactivar y restablecer sí. Desactivar y reactivar son idempotentes. | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | Los extras que ya da el rol no se guardan. `OWNER` no aparece en el selector de roles. La lista no se filtra por la sucursal del actor en el MVP. | Propuesta del agente; revisar al aprobar |
+| 2026-10-03 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
+| 2026-10-03 | El catálogo pasa a 25 permisos (`inventory.other_branches.read`) y el seed crea `S2`; cambian §3 (alcance), el caso borde 3, T22 y la nota de fuera de alcance sobre el filtro por sucursal. | Usuario (chat), durante la revisión de F6; F1 §6.4 y §7.2 actualizados |

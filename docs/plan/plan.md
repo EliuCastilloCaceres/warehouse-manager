@@ -40,11 +40,11 @@ A futuro se sumarán proveedores, portales de proveedores y clientes, transferen
 |---|---|
 | **Login** | Inicio de sesión con usuario y contraseña. Cierre de sesión. |
 | **Usuarios** | Crear, editar y desactivar usuarios. Generar credenciales (usuario/contraseña). Asignar sucursales. Asignar permisos. |
-| **Almacén / sucursal** | Mapa de productos con stock y estado. Ubicar productos. Ver la capacidad usada y disponible del almacén, sus contenedores y sus racks. Reasignar (reubicar) productos. Crear zonas, crear contenedores en una zona y crear racks en un contenedor. Generar QR de ubicaciones. |
+| **Almacén / sucursal** | Mapa de productos con stock y estado. Ubicar productos. Ver la capacidad usada y disponible del almacén, sus contenedores y sus racks. Reasignar (reubicar) productos. Crear zonas, crear contenedores en una zona y crear racks en un contenedor. Generar QR de ubicaciones. Consultar existencias de un producto en otras sucursales (decisión 2026-10-03). |
 | **Productos** | Carga masiva mediante una tabla editable tipo Excel/Shopify. Crear, actualizar y desactivar productos. Generar etiqueta con código de barras e imagen del producto. |
-| **POS** | Abrir caja. Buscar producto. Agregar al carrito. Suspender carritos (hasta 5). Vender. Imprimir ticket. Cancelar una venta completa mientras su caja siga abierta (decisión 2026-10-01). |
+| **POS** | Abrir caja. Buscar producto. Agregar al carrito. Suspender carritos (hasta 5). Vender. Imprimir ticket. Cancelar una venta completa mientras su caja siga abierta (decisión 2026-10-01). Saber si un producto tiene existencias en otra sucursal (decisión 2026-10-03). |
 | **Reportes** | Ventas por rango de fechas, por defecto el día actual, con totales. |
-| **Ajustes** | Sucursales: 1 por defecto, solo se editan sus datos. Cajas: 2 por defecto, asignadas a la sucursal 1, solo se editan sus datos. |
+| **Ajustes** | Sucursales: 2 por defecto (S1 y S2, creadas por el seed), solo se editan sus datos. Cajas: 2 por sucursal, solo se editan sus datos (decisión 2026-10-03). |
 
 ### 1.3 Fuera del MVP (considerado en el diseño)
 Estos módulos no se construyen ahora, pero el modelo de datos y la arquitectura dejan **puntos de extensión** para ellos (ver §11):
@@ -361,7 +361,7 @@ erDiagram
 #### Organización
 | Entidad | Campos clave | Reglas |
 |---|---|---|
-| `Branch` (sucursal) | `code`, `name`, `legalName`, `taxId`, `address`, `phone`, `email`, `imageUrl`, `logoUrl`, `ticketHeader`, `ticketFooterMessage`, `promoQrImageUrl`, `promoQrText`, `timezone`, `currency`, `taxRateBp` (puntos base, 1600 = 16 %), `pricesIncludeTax`, `lowStockThreshold` (umbral de stock bajo, 2 por defecto), `isActive` | En el MVP solo existe la sucursal del seed y únicamente se **edita**. Valores del seed: MXN, IVA 16 % incluido en los precios (§13, respondido 2026-10-01). |
+| `Branch` (sucursal) | `code`, `name`, `legalName`, `taxId`, `address`, `phone`, `email`, `imageUrl`, `logoUrl`, `ticketHeader`, `ticketFooterMessage`, `promoQrText` (contenido del QR, que genera el sistema), `promoQrCaption` (descripción impresa bajo el QR), `timezone`, `currency`, `taxRateBp` (puntos base, 1600 = 16 %), `pricesIncludeTax`, `lowStockThreshold` (umbral de stock bajo, 2 por defecto), `isActive` | En el MVP existen las 2 sucursales del seed (S1 y S2) y únicamente se **editan**. Valores del seed: MXN, IVA 16 % incluido en los precios (§13, respondido 2026-10-01). |
 | `BranchCounter` | `branchId`, `key` (`SALE_FOLIO`), `value` | Consecutivos por sucursal. Se incrementa con `UPDATE … RETURNING` dentro de la transacción de venta. |
 | `CashRegister` (caja) | `branchId`, `code`, `name`, `isActive` | El seed crea 2 cajas en la sucursal 1. En el MVP solo se editan. |
 | `CashSession` (turno de caja) | `cashRegisterId`, `openedById`, `openedAt`, `openingAmount`, `closedById`, `closedAt`, `expectedAmount`, `countedAmount`, `difference`, `status` (`OPEN`/`CLOSED`) | **Máximo 1 sesión `OPEN` por caja**, garantizado con un índice único parcial. Para vender se requiere una sesión abierta. |
@@ -495,7 +495,8 @@ stateDiagram-v2
 
 ### 5.3 Contenido del QR
 - El QR de ubicación contiene `LOC:A-01-03`. El prefijo `LOC:` permite que el mismo campo de escaneo distinga **ubicación vs. producto** sin que el usuario cambie de modo.
-- El código de barras del producto (Code128) contiene únicamente el SKU de la variante.
+- El código de barras del producto (Code128) contiene únicamente el SKU de la variante. En la etiqueta de 50×25 mm se usa un QR con el mismo SKU, porque un Code128 legible de un SKU típico no cabe en ese ancho (decisión 2026-10-03).
+- El QR de promoción del ticket (F5) contiene `PROMO:<texto>`, salvo que el texto sea un enlace (`http://`, `https://` o `www.`), que va tal cual para que el celular del cliente lo abra. En los dos casos, el campo de escaneo lo reconoce como promoción.
 - La etiqueta de ubicación muestra: QR, código grande legible (`A-01-03`), banda de color, nombre de zona y capacidad.
 
 ---
@@ -528,7 +529,7 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
 | Usuarios | `users.read`, `users.manage`, `users.permissions` |
 | Productos | `products.read`, `products.manage`, `products.import`, `products.labels` |
 | Almacén | `warehouse.read`, `warehouse.manage` (estructura), `warehouse.labels` |
-| Inventario | `inventory.putaway`, `inventory.relocate`, `inventory.adjust`, `inventory.override_capacity`, `inventory.movements.read` |
+| Inventario | `inventory.putaway`, `inventory.relocate`, `inventory.adjust`, `inventory.override_capacity`, `inventory.movements.read`, `inventory.other_branches.read` (ver existencias en otras sucursales) |
 | POS | `pos.session.open`, `pos.session.close`, `pos.sell`, `pos.discount`, `pos.sale.cancel` |
 | Reportes | `reports.sales`, `reports.sales.all_users` |
 | Ajustes | `settings.branch`, `settings.registers` |
@@ -540,7 +541,7 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
 | **Propietario** (`OWNER`) | Todos, siempre (incluidos los que se agreguen al catálogo). Hay **exactamente uno**, creado por el seed (usuario `owner`); el rol no se asigna desde la app. Nadie más puede editarlo, desactivarlo ni restablecer su contraseña; él mismo solo edita sus datos y no puede degradarse. Si olvida la contraseña, se restablece con el comando de servidor `pnpm owner:reset-password` (decisión 2026-10-03). |
 | **Administrador** | Todos. |
 | **Gerente** | Todos excepto `users.permissions`. |
-| **Vendedor** | `products.read`, `warehouse.read`, `pos.*` excepto `pos.discount` y `pos.sale.cancel`, `inventory.relocate` (para regresar productos) y `reports.sales` (solo sus propias ventas). |
+| **Vendedor** | `products.read`, `warehouse.read`, `pos.*` excepto `pos.discount` y `pos.sale.cancel`, `inventory.relocate` (para regresar productos), `inventory.other_branches.read` y `reports.sales` (solo sus propias ventas). |
 | **Almacenista** | `products.read`, `products.labels`, `warehouse.*`, `inventory.putaway`, `inventory.relocate` e `inventory.movements.read`. |
 
 - En el backend, cada ruta declara `requirePermission('x.y')`. El frontend usa el mismo catálogo para ocultar menús y acciones (`<Can perm="x.y">`).
@@ -556,13 +557,13 @@ Catálogo inicial (definido en `packages/shared/src/permissions.ts`):
   - **Modo cámara:** `@zxing/browser` lee Code128, EAN-13 y QR. Muestra un visor de pantalla completa en el móvil, con linterna si el dispositivo la soporta, vibración y sonido al leer, y anti-rebote para evitar lecturas dobles.
   - **Modo lector físico (HID "keyboard wedge"):** detecta ráfagas de teclas muy rápidas terminadas en `Enter` y las trata como un escaneo, aunque el foco esté en otro lugar de la pantalla. Esto aplica en las pantallas de escaneo continuo.
   - **Tecleo manual:** un input con búsqueda por SKU o nombre.
-- **Clasificador de código** (en `shared`): `LOC:*` → ubicación. Cualquier otro valor → SKU de variante. Si no existe, se busca el SKU padre y se ofrece elegir la variante.
+- **Clasificador de código** (en `shared`): `LOC:*` → ubicación. `PROMO:*` o un enlace → promoción (el POS muestra el texto; los demás módulos avisan que no es un producto). Cualquier otro valor → SKU de variante. Si no existe, se busca el SKU padre y se ofrece elegir la variante.
 - **HTTPS obligatorio:** los navegadores solo permiten la cámara (`getUserMedia`) en contextos seguros. Ver §10 sobre certificados en un servidor local.
 
 ### 7.2 Impresión
 | Documento | Implementación MVP |
 |---|---|
-| **Etiqueta de producto** | Vista HTML imprimible con imagen, nombre, variante (talla/color), precio opcional y código Code128 (JsBarcode, SVG). Tamaños predefinidos (por ejemplo 50×25 mm y 4×6") y hoja A4 o Carta con varias etiquetas. Permite seleccionar varias variantes y cantidades. |
+| **Etiqueta de producto** | Vista HTML imprimible con nombre, variante (talla/color), precio opcional y código del SKU. Formatos: 50×25 mm (sin imagen y con QR del SKU), 4×6" y hoja A4 o Carta de 3×8 (con imagen y Code128). Permite seleccionar varias variantes y cantidades. |
 | **Etiqueta de ubicación** | Hoja A4 o Carta con QR (`qrcode`), código grande y banda de color. Se puede imprimir por rack, contenedor, zona o todo el almacén. |
 | **Ticket de venta** | HTML con CSS `@media print` y `@page { size: 80mm auto }` (opción de 58 mm). Incluye logo y datos de la sucursal, encabezado, folio, fecha, cajero, partidas, totales, impuestos, pagos y cambio, mensaje configurable y QR de promoción. Se imprime con `window.print()`. También se puede reimprimir desde el detalle de la venta. |
 
@@ -627,8 +628,8 @@ flowchart LR
 - **Seed idempotente:**
   - catálogo de permisos y roles semilla;
   - usuario `owner` con el rol Propietario y usuario `admin` con el rol Administrador (contraseñas tomadas de variables de entorno, con `mustChangePassword`);
-  - sucursal 1 y cajas 1 y 2;
-  - almacén principal y zona `STG` con su contenedor y rack de staging;
+  - sucursales 1 y 2 (decisión 2026-10-03), cada una con las cajas 1 y 2;
+  - en cada sucursal, almacén principal y zona `STG` con su contenedor y rack de staging;
   - categorías de ejemplo.
 - **Seed de demo opcional** (`pnpm seed:demo`): zonas A–C, racks y productos con variantes, **sin stock** (decisión 2026-10-01: el stock no se escribe fuera de `InventoryService`; la carga de stock de demo llega en F7).
 - `packages/shared`:
@@ -734,7 +735,9 @@ flowchart LR
 ### Fase 5 — Ajustes: sucursal y cajas
 **Objetivo:** configurar los datos que aparecen en los tickets y en la operación.
 
-**API:** `GET/PATCH /branches/:id` (datos fiscales y de contacto, imagen, logo, encabezado y pie de ticket, mensaje, QR de promoción, zona horaria, impuestos) y `GET/PATCH /cash-registers/:id`. **No hay alta ni baja** en el MVP.
+**API:** `GET/PATCH /branches/:id` (datos fiscales y de contacto, imagen, logo, encabezado y pie de ticket, mensaje, QR de promoción, zona horaria, impuestos y umbral de stock bajo) y `GET /cash-registers` (cajas de la sucursal) + `GET/PATCH /cash-registers/:id`. **No hay alta ni baja** en el MVP.
+
+**QR de promoción** (decisión 2026-10-03): el sistema genera el QR a partir de un texto (`promoQrText`), con una descripción opcional debajo (`promoQrCaption`, p. ej. "Muestra este QR al cajero en tu próxima compra"). El contenido del QR es automático: un enlace va tal cual (el celular del cliente lo abre) y cualquier otro texto, como `PROMO:<texto>` (§5.3). Si el QR es un código de descuento, el sistema no lo valida: al escanearlo, el POS muestra el texto y el cajero aplica el descuento a mano con `pos.discount`. Los cupones que el sistema valida quedan post-MVP (§11).
 
 **UI:**
 - Formulario de sucursal con carga de imágenes.
@@ -759,7 +762,13 @@ flowchart LR
 - **Carga masiva:**
   - `GET /products/import/template` descarga una plantilla `.xlsx` con hojas de instrucciones y catálogos.
   - `POST /products/import/validate` valida filas y devuelve errores por fila y campo sin escribir nada.
-  - `POST /products/import/commit` aplica la carga en una transacción (o en lotes con reporte). Crea o actualiza productos y variantes y, opcionalmente, registra stock inicial (`INITIAL_LOAD`) en la ubicación indicada o en staging.
+  - `POST /products/import/parse` lee un `.xlsx` en el servidor y devuelve sus filas para cargarlas al grid.
+  - `POST /products/import/commit` aplica la carga en **una sola transacción, todo o nada**, después de validar sin errores. Crea o actualiza productos y variantes y, opcionalmente, registra existencia en la ubicación indicada o en staging.
+- **Reglas de la carga masiva** (decisiones 2026-10-03):
+  - la existencia **siempre suma**: `INITIAL_LOAD` si la variante no tenía movimientos y `PUTAWAY` si ya tenía; antes de aplicar se muestra "Se sumarán N unidades a M variantes que ya tienen stock" y se exige confirmarlo;
+  - registrar existencia exige `products.import` + `inventory.putaway`; exceder la capacidad exige además `inventory.override_capacity` y marcar "Permitir exceder capacidad";
+  - al actualizar, una celda vacía no cambia el valor y `-` borra un valor opcional;
+  - una categoría o marca desconocida se crea, con aviso en el resumen; las subcategorías se escriben como `Calzado > Dama`.
 - Formato de fila (una fila = una variante):
 
   `sku_padre | nombre | categoría | marca | tipo | precio | costo | sku_variante | talla | color | material | precio_variante | existencia | ubicación | activo`
@@ -773,12 +782,13 @@ flowchart LR
   - **generador de matriz de variantes** (seleccionar tallas × colores × materiales → genera filas con SKU sugerido editable);
   - tabla de variantes editable;
   - galería de imágenes (cámara del celular o archivo).
-- **Editor masivo tipo Excel/Shopify:**
+- **Editor masivo tipo Excel/Shopify** (solo en escritorio; en móvil se muestra un aviso):
   - grid editable con copiar y pegar desde Excel, agregar filas y autocompletar categoría y marca;
   - validación en vivo con los esquemas Zod de `shared` (celdas con error resaltadas y su mensaje);
   - importar `.xlsx` al grid y descargar la plantilla;
   - botón "Validar en servidor" y luego "Aplicar", con un resumen (creados, actualizados, errores).
-- **Etiquetas:** seleccionar variantes y cantidades, elegir formato y abrir la vista previa de impresión.
+- **Etiquetas:** seleccionar variantes y cantidades, elegir formato y abrir la vista previa de impresión. La de 50×25 mm no lleva imagen y usa QR del SKU; 4×6" y las hojas llevan imagen y Code128.
+- **SKU sugerido de variante:** las tallas con medio número pierden el punto (`25.5` → `255`, p. ej. `ZAP0101-255-NEG`).
 
 **Criterios de aceptación**
 - No se pueden crear SKUs duplicados; el error indica la fila y el SKU.
@@ -792,20 +802,23 @@ flowchart LR
 
 **API** (`/api/v1/warehouses/:id/...`, `/inventory/...`)
 - **Estructura:** CRUD de zonas, contenedores y racks; creación en lote (por ejemplo "crear 10 racks en el contenedor A-01 con capacidad 40"); desactivar solo si no hay stock; recálculo de `locationCode`.
+  - Los códigos se pueden cambiar siempre (decisión 2026-10-03): se recalcula `locationCode` de los racks afectados y se pide confirmar "Reimprime las etiquetas de N racks".
+  - La capacidad se puede bajar por debajo de la ocupación, con aviso: el rack queda por encima del 100 % y las entradas se bloquean salvo `inventory.override_capacity`.
 - **Árbol con capacidad:**
   - `GET /warehouses/:id/tree` devuelve zonas → contenedores → racks con capacidad, ocupación y porcentaje en cada nivel, más los totales del almacén;
   - `GET /racks/:id`, `/containers/:id` y `/zones/:id` devuelven el contenido (SKUs, cantidades, reservadas y estado).
 - **Búsqueda:**
   - `GET /inventory/locate?sku=` devuelve las ubicaciones de una variante (o de todas las variantes de un SKU padre) con existencia y disponibles;
   - `GET /inventory/by-location?code=A-01-03` devuelve el contenido de esa ubicación.
+  - **Existencias en otras sucursales** (decisión 2026-10-03): con `inventory.other_branches.read`, la búsqueda por variante agrega `otherBranches`: por cada otra sucursal activa con disponibles > 0, su nombre, teléfono y unidades disponibles (Σ `quantity − reservedQty` de sus almacenes activos, incluido staging). Sin racks ni ubicaciones. Se ven todas las sucursales activas, aunque el usuario no las tenga asignadas: es solo lectura. F8 reutiliza esta consulta.
 - **Ubicar (putaway):**
   - `GET /inventory/suggest-locations?variantId=&qty=`: el MVP sugiere primero los racks donde ya está la variante o el mismo producto con espacio, luego los racks con más espacio libre en la zona preferida, y excluye los llenos. Más adelante la sugerencia será por rotación (ABC);
-  - `POST /inventory/putaway` con `{variantId, rackId, qty, sourceRackId?}`. Sin origen es una entrada; si el origen es staging, es un reacomodo.
+  - `POST /inventory/putaway` con `{variantId, rackId, qty, source}` (decisión 2026-10-03): `source: 'STAGING'` toma unidades de staging (`RELOCATE`, el valor por defecto si la variante tiene unidades ahí) y `source: 'NEW'` es mercancía nueva (`PUTAWAY`, suma stock). Hay una versión por lote para el modo "ubicación primero".
 - **Reubicar:** `POST /inventory/relocate` con `{fromRackId, toRackId, items:[{variantId, qty}]}`. Admite mover varios SKUs o el rack completo.
-- **Ajuste:** `POST /inventory/adjust` (con permiso, motivo obligatorio).
+- **Ajuste:** `POST /inventory/adjust` (con `inventory.adjust`): motivo de una lista fija (Conteo físico, Merma o daño, Extravío, Hallazgo, Error de captura, Otro) y nota obligatoria (decisión 2026-10-03).
 - **Kardex:** `GET /inventory/movements` filtrable por variante, rack, tipo, usuario y fechas.
-- **Etiquetas QR:** `GET /warehouses/:id/labels?scope=zone|container|rack&ids=` devuelve los datos para la hoja de QR.
-- **Seed de demo con stock:** extiende `pnpm seed:demo` para registrar stock de ejemplo mediante `InventoryService` (`INITIAL_LOAD`).
+- **Etiquetas QR:** `GET /warehouses/:id/labels?scope=zone|container|rack&ids=` devuelve los datos para imprimir. Formatos (decisión 2026-10-03): térmica 4×6" (QR, código grande, franja negra con el nombre del color, zona y capacidad), térmica 50×25 mm (QR y código) y hoja A4 o Carta a color (varias por hoja, con la banda en su color real).
+- **Seed de demo con stock:** extiende `pnpm seed:demo` para registrar stock de ejemplo mediante `InventoryService` (`INITIAL_LOAD`), con unidades en staging de `S2` para probar la consulta de otras sucursales.
 
 **UI**
 - **Configurar almacén:**
@@ -819,7 +832,7 @@ flowchart LR
   - al tocar un rack se ven sus SKUs con miniatura, cantidad y estado;
   - filtros por estado del producto (agotado, bajo, en piso, en staging);
   - totales del almacén.
-- **Buscar producto:** escanear o teclear el SKU para ver la lista de ubicaciones con la cantidad y el color de la ubicación.
+- **Buscar producto:** escanear o teclear el SKU para ver la lista de ubicaciones con la cantidad y el color de la ubicación y, debajo, "En otras sucursales" (nombre, teléfono y disponibles) con `inventory.other_branches.read`.
 - **Ubicar — modo "producto primero":** escanear el producto → ver las ubicaciones sugeridas con el espacio libre → escanear o elegir la ubicación → indicar la cantidad → confirmar.
 - **Ubicar — modo "ubicación primero":** escanear la ubicación → escanear o teclear productos de forma continua (cada lectura suma 1, la cantidad es editable) → confirmar el lote.
 - **Reubicar:** escanear el origen → seleccionar SKUs y cantidades (o "todo") → escanear el destino → confirmar. Valida la capacidad del destino.
@@ -885,6 +898,7 @@ sequenceDiagram
   5. marca el carrito como `CHECKED_OUT`.
 - `GET /sales/:id` (detalle) y `GET /sales/:id/ticket` (datos del ticket, para reimpresión).
 - Descuento por partida o global, solo con `pos.discount`. Se guarda como monto en centavos; la UI puede capturar un porcentaje y convertirlo.
+- **QR de promoción escaneado** (decisión 2026-10-03): una lectura `promo` muestra un aviso con el código, y con la descripción (`promoQrCaption`) si coincide con `promoQrText` de la sucursal. Con `pos.discount`, ofrece "Aplicar descuento", que abre el descuento global para capturarlo a mano. El código no se valida.
 - **Cancelación:** `POST /sales/:id/cancel` con `{reason}` y `pos.sale.cancel`. Es solo total y solo si la `CashSession` de la venta sigue `OPEN`. En una transacción: el stock de cada partida entra a staging (`SALE_CANCEL`), la venta queda `CANCELLED` y se registra en `AuditLog`. El esperado del corte excluye las ventas canceladas.
 
 **UI**
@@ -892,6 +906,7 @@ sequenceDiagram
 - **Pantalla de venta (mobile-first):**
   - `ScanInput` arriba;
   - resultado con imagen, nombre, **selector de talla/color con existencias** y la ubicación de cada una;
+  - con `inventory.other_branches.read`, por variante: "Hay en Sucursal 2 (2) · 55 1234 5678", sobre todo cuando aquí no hay disponibles (consulta de F7);
   - botón "Agregar desde A-01-03";
   - carrito con partidas, la ubicación de origen de cada una y un total fijo visible.
 - **Barra de carritos:** chips con los carritos activo y suspendidos (hasta 5) y su etiqueta o nombre del cliente; cambio rápido entre ellos; "Nuevo carrito"; aviso al llegar al límite.
@@ -1015,13 +1030,14 @@ Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas. El tratami
 | **Proveedores y órdenes de compra** | Nuevas entidades `Supplier`, `PurchaseOrder` y `PurchaseOrderItem` con estados `DRAFT → SENT → CONFIRMED → SHIPPED → RECEIVED`. La recepción usa `InventoryService.putaway` con `referenceType = PURCHASE_ORDER` y registra quién recibió (`receivedById`). |
 | **Portal de proveedores** | `User.type = SUPPLIER` + `supplierId`. Permisos `supplier_portal.*`. Rutas `/portal/supplier` con observaciones (`PurchaseOrderComment`) y marcado de "enviado". |
 | **Portal de clientes y pedidos en línea** | `Customer`, `User.type = CUSTOMER`, `Order` (reutiliza el patrón Cart → Sale con reservas). |
-| **Transferencias entre sucursales** | `Transfer` + `TransferItem` (`REQUESTED → IN_TRANSIT → RECEIVED`). Movimientos `TRANSFER_OUT`/`TRANSFER_IN` entre racks de almacenes distintos. El modelo ya admite N sucursales y almacenes. |
+| **Transferencias entre sucursales** | `Transfer` + `TransferItem` (`REQUESTED → IN_TRANSIT → RECEIVED`). Movimientos `TRANSFER_OUT`/`TRANSFER_IN` entre racks de almacenes distintos. El modelo ya admite N sucursales y almacenes. En el MVP ya se puede **consultar** el stock de otras sucursales (F7/F8); falta moverlo. |
 | **Sincronización con WooCommerce** | `ExternalChannel`, `ExternalProductMap` (variante ↔ ID de Woo) y `SyncLog`. Una tabla **outbox** se alimenta de `InventoryMovement` y un *worker* envía el stock disponible por variante. Webhooks de Woo para pedidos en línea (reservan o descuentan stock) y un job de conciliación periódica. |
 | **Ubicación por rotación (ABC)** | Job que clasifica variantes por ventas (`SaleItem`) en A/B/C. `Zone.priority` indica la cercanía al piso de venta. `suggest-locations` pasa a priorizar zonas cercanas para la clase A. |
 | **Multi-sucursal completa** | Alta y baja de sucursales y cajas (ya modeladas), reportes consolidados y stock por sucursal. |
 | **Niveles de rack (bins)** | Entidad `Bin` bajo `Rack` y sufijo `-N` en el código de ubicación. |
 | **Impresión directa** | Agente local o WebUSB/WebBluetooth ESC/POS. |
 | **Offline** | Cola de operaciones en IndexedDB para el almacén (escaneos) con sincronización. |
+| **Cupones de descuento** | Entidad `Coupon` (monto o %, vigencia, uso único o múltiple) y registro de canjes. El QR del ticket ya lleva el código y el POS ya lo reconoce al escanearlo (§7.1); falta validarlo y aplicar el descuento solo. En el MVP el cajero lo aplica a mano. |
 | **Devoluciones y cancelación parcial** | La cancelación total con caja abierta ya está en el MVP (`SALE_CANCEL`). Después: `SaleReturn` (por partida, también con la caja cerrada) y el movimiento `RETURN_FROM_SALE`. |
 
 ---

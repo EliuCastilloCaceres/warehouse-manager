@@ -37,7 +37,7 @@ fuera_de_alcance:
   - "Valores SUPPLIER/CUSTOMER de UserType y cualquier entidad del roadmap §11"
   - "Endpoints, pantallas y cambios en apps/web"
   - "Generadores de ERD (decisión 2026-10-01: mermaid a mano)"
-tests_requeridos_total: 25
+tests_requeridos_total: 26
 tests_requeridos_en_verde: 0
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en packages/shared y en apps/api/prisma/seed/** + apps/api/src/core/password.ts"
 definition_of_done: pendiente
@@ -132,6 +132,7 @@ enum CartStatus             { ACTIVE SUSPENDED CHECKED_OUT DISCARDED }
 enum SaleStatus             { COMPLETED CANCELLED }
 enum PaymentMethod          { CASH CARD TRANSFER }
 enum BranchCounterKey       { SALE_FOLIO }
+enum AdjustmentReason       { PHYSICAL_COUNT DAMAGE LOSS FOUND DATA_ENTRY_ERROR OTHER }
 ```
 
 ### 4.2 Organización
@@ -150,8 +151,8 @@ model Branch {
   logoUrl             String?
   ticketHeader        String?
   ticketFooterMessage String?
-  promoQrImageUrl     String?
-  promoQrText         String?
+  promoQrText         String?                     // contenido del QR; la app lo dibuja (F5)
+  promoQrCaption      String?                     // descripción impresa bajo el QR
   timezone            String   @default("America/Mexico_City")
   currency            String   @default("MXN")    // Char(3)
   taxRateBp           Int      @default(1600)
@@ -438,6 +439,7 @@ model InventoryMovement {
   referenceType      InventoryReferenceType?
   referenceId        String?                 // @db.Uuid
   note               String?
+  adjustmentReason   AdjustmentReason?       // solo en ADJUSTMENT_IN/OUT (F7)
   capacityOverridden Boolean                 @default(false)
   createdAt          DateTime                @default(now())
   @@index([variantId, createdAt])
@@ -583,6 +585,7 @@ Cada restricción lleva el nombre exacto de esta tabla. T17–T20 verifican cada
 | `inventory_movement_qty_check` | inventory_movement | `quantity > 0` |
 | `inventory_movement_shape_check` | inventory_movement | La forma de la tabla de §4.5 según `type`. En `RELOCATE`/`TO_STAGING`, además, `from_rack_id <> to_rack_id`. |
 | `inventory_movement_reference_check` | inventory_movement | `(reference_type IS NULL) = (reference_id IS NULL)` |
+| `inventory_movement_adjustment_reason_check` | inventory_movement | `(adjustment_reason IS NOT NULL) = (type IN ('ADJUSTMENT_IN', 'ADJUSTMENT_OUT'))` |
 | `cart_discount_check` | cart | `discount >= 0` |
 | `cart_item_amounts_check` | cart_item | `quantity > 0 AND unit_price >= 0 AND discount >= 0 AND discount <= unit_price * quantity` |
 | `sale_amounts_check` | sale | `subtotal >= 0 AND global_discount >= 0 AND discount_total >= global_discount AND tax_total >= 0 AND total >= 0 AND tax_rate_bp BETWEEN 0 AND 10000` |
@@ -634,12 +637,12 @@ packages/shared/src/
 ├── index.ts            # reexporta todo
 ├── health.ts           # (F0)
 ├── common.ts           # Uuid, IsoDateTime, Quantity, NonNegativeInt, BasisPoints
-├── enums.ts            # los 9 enums de §4.1 como z.enum
+├── enums.ts            # los 10 enums de §4.1 como z.enum
 ├── permissions.ts      # PERMISSION_MODULES, PERMISSIONS, PermissionCode, SystemRoleCode, SYSTEM_ROLES
 ├── money.ts            # MoneyCents, SignedMoneyCents, formatMoney, parseMoney, applyBasisPoints
 ├── sku.ts              # SkuSchema, normalizeSku
 ├── locationCode.ts     # esquemas, buildLocationCode, parseLocationCode, toLocationQr
-├── scanClassifier.ts   # classifyScan
+├── scanClassifier.ts   # classifyScan, PROMO_QR_PREFIX, isUrlLike, toPromoQrPayload
 ├── errors.ts           # ErrorCode, ApiErrorDto
 ├── pagination.ts       # PaginationQuery, sortQuery, paginated
 └── dto/
@@ -666,13 +669,13 @@ export const BasisPoints = z.number().int().min(0).max(10_000);
 
 ### 6.3 `enums.ts`
 
-Los 9 enums de §4.1, con el mismo nombre y los mismos valores, por ejemplo `export const PaymentMethod = z.enum(['CASH', 'CARD', 'TRANSFER'])`.
+Los 10 enums de §4.1, con el mismo nombre y los mismos valores, por ejemplo `export const PaymentMethod = z.enum(['CASH', 'CARD', 'TRANSFER'])`.
 
 ### 6.4 `permissions.ts`
 
 `PERMISSION_MODULES = ['users', 'products', 'warehouse', 'inventory', 'pos', 'reports', 'settings']`.
 
-`PERMISSIONS` (24; `{ code, module, description }` con la descripción en español):
+`PERMISSIONS` (25; `{ code, module, description }` con la descripción en español):
 
 | Código | Módulo | Descripción |
 |---|---|---|
@@ -691,6 +694,7 @@ Los 9 enums de §4.1, con el mismo nombre y los mismos valores, por ejemplo `exp
 | `inventory.adjust` | inventory | Ajustar inventario |
 | `inventory.override_capacity` | inventory | Exceder la capacidad de un rack |
 | `inventory.movements.read` | inventory | Ver kardex |
+| `inventory.other_branches.read` | inventory | Ver existencias en otras sucursales |
 | `pos.session.open` | pos | Abrir caja |
 | `pos.session.close` | pos | Cerrar caja (corte) |
 | `pos.sell` | pos | Vender |
@@ -707,10 +711,10 @@ Formato de código: `^[a-z]+(\.[a-z_]+)+$`, y el primer segmento es su `module`.
 
 | Código | Nombre | Permisos |
 |---|---|---|
-| `OWNER` | Propietario | Todos los del catálogo (24), derivados de `PERMISSIONS`, para que un permiso nuevo se incluya solo |
-| `ADMIN` | Administrador | Los 24 |
-| `MANAGER` | Gerente | Los 24 excepto `users.permissions` (23) |
-| `SELLER` | Vendedor | `products.read`, `warehouse.read`, `pos.session.open`, `pos.session.close`, `pos.sell`, `inventory.relocate` y `reports.sales` (7) |
+| `OWNER` | Propietario | Todos los del catálogo (25), derivados de `PERMISSIONS`, para que un permiso nuevo se incluya solo |
+| `ADMIN` | Administrador | Los 25 |
+| `MANAGER` | Gerente | Los 25 excepto `users.permissions` (24) |
+| `SELLER` | Vendedor | `products.read`, `warehouse.read`, `pos.session.open`, `pos.session.close`, `pos.sell`, `inventory.relocate`, `inventory.other_branches.read` y `reports.sales` (8) |
 | `WAREHOUSE_CLERK` | Almacenista | `products.read`, `products.labels`, `warehouse.read`, `warehouse.manage`, `warehouse.labels`, `inventory.putaway`, `inventory.relocate` e `inventory.movements.read` (8) |
 
 ### 6.5 `money.ts`
@@ -744,13 +748,21 @@ Formato de código: `^[a-z]+(\.[a-z_]+)+$`, y el primer segmento es su `module`.
 type ScanResult =
   | { kind: 'location'; code: string }   // canónico, p. ej. "A-01-03"
   | { kind: 'product'; code: string }    // SKU o código de barras normalizado
+  | { kind: 'promo'; text: string }      // QR de promoción del ticket (F5)
   | { kind: 'invalid'; raw: string };
 ```
 
-Reglas:
+Reglas, en este orden:
 1. Quita espacios y caracteres de control (`\r`, `\n`, `\t`) al inicio y al final.
 2. Si empieza con `LOC:` (sin distinguir mayúsculas), aplica `parseLocationCode` al resto: si es válido → `location`; si no → `invalid`.
-3. Si no, aplica `normalizeSku`: si cumple `SkuSchema` → `product`; si no → `invalid`.
+3. Si empieza con `PROMO:` (sin distinguir mayúsculas) y el resto, recortado, no está vacío → `promo` con ese resto tal como se escribió; con el resto vacío → `invalid`.
+4. Si `isUrlLike` → `promo` con la lectura completa.
+5. Si no, aplica `normalizeSku`: si cumple `SkuSchema` → `product`; si no → `invalid`.
+
+**QR de promoción** (decisión 2026-10-03, F5):
+- `PROMO_QR_PREFIX = 'PROMO:'`.
+- `isUrlLike(text)`: `^(https?://|www\.)`, sin distinguir mayúsculas.
+- `toPromoQrPayload(text)`: un enlace (`isUrlLike`) se codifica tal cual, para que el celular del cliente lo abra; cualquier otro texto, como `PROMO:` + texto. Así, al escanearlo en el sistema, los dos casos se reconocen como `promo`.
 
 ### 6.9 `errors.ts`
 
@@ -833,6 +845,8 @@ apps/api/prisma/
 | Usuario `owner` | `username` | `fullName "Propietario"`, rol `OWNER`, hash argon2id de `OWNER_INITIAL_PASSWORD`, `mustChangePassword true` y `UserBranch(S1, isDefault true)`. | No se toca; **nunca** se restablece su contraseña (para eso existe el comando de F4). |
 | Usuario `admin` | `username` | `fullName "Administrador"`, rol `ADMIN`, hash argon2id de `ADMIN_INITIAL_PASSWORD`, `mustChangePassword true` y `UserBranch(S1, isDefault true)`. | No se toca; **nunca** se restablece su contraseña. |
 | Categorías raíz | (`null`, `name`) | `Calzado`, `Bolsos` y `Accesorios` | No se tocan. |
+| Segunda sucursal | `code = 'S2'` | `name "Sucursal 2"` con los mismos defaults que `S1`. | No se toca. |
+| Contador, cajas, almacén y staging de `S2` | Las mismas claves que en `S1`, con `S2` | `SALE_FOLIO` en 0; `C1` "Caja 1" y `C2` "Caja 2"; `ALM1` "Almacén principal"; zona `STG`, contenedor `01` y rack `STG-01-01`. | No se tocan. |
 
 Al terminar, imprime un resumen en español con lo creado, lo actualizado y lo borrado.
 
@@ -938,8 +952,8 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
   - Crear `money.ts`, `sku.ts` y los tests **T1–T4**.
   - *Verificable:* T1–T4 en verde.
 - [ ] **5. `shared`: ubicación y escaneo.**
-  - Crear `locationCode.ts`, `scanClassifier.ts` y los tests **T5–T7**.
-  - *Verificable:* T5–T7 en verde.
+  - Crear `locationCode.ts`, `scanClassifier.ts` y los tests **T5–T7** y **T26**.
+  - *Verificable:* T5–T7 y T26 en verde.
 - [ ] **6. `shared`: errores y paginación.**
   - Crear `errors.ts`, `pagination.ts` y los tests **T8–T9**.
   - *Verificable:* T8–T9 en verde.
@@ -973,7 +987,7 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 
 ---
 
-## 12. Tests requeridos (lista cerrada: 25)
+## 12. Tests requeridos (lista cerrada: 26)
 
 | ID | Paquete / archivo | Caso |
 |---|---|---|
@@ -983,25 +997,26 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 | T4 | `shared` · `sku.test.ts` | `normalizeSku(" zap01 ")` → `"ZAP01"`. `SkuSchema` acepta `ZAP0101-25-NEG` y uno de 40 caracteres; rechaza 2 caracteres, 41 caracteres, `"ZAP 01"` y `"ZAP_01"` (`it.each`). |
 | T5 | `shared` · `locationCode.test.ts` | `buildLocationCode` → `A-01-03`, `AB-12-99` y `STG-01-01`; lanza error con zona `ABC`, contenedor `00` o rack `100`. |
 | T6 | `shared` · `locationCode.test.ts` | `parseLocationCode`: canónicos, tolerantes (`"a-1-3"` → `A-01-03`, `" stg-1-1 "` → `STG-01-01`) e inválidos → `null` (`"A-00-01"`, `"A-100-01"`, `"ABC-01-01"`, `"A01-03"`, `""`). `toLocationQr("A-01-03")` → `"LOC:A-01-03"`. |
-| T7 | `shared` · `scanClassifier.test.ts` | `it.each`: `"LOC:A-01-03"` → location; `"loc:a-1-3\r\n"` → location `A-01-03`; `" zap0101-25-neg\t"` → product `ZAP0101-25-NEG`; `"7501234567890"` → product; `"LOC:XYZ"` → invalid; `""` → invalid; `"ZAP 01"` → invalid. |
+| T7 | `shared` · `scanClassifier.test.ts` | `it.each`: `"LOC:A-01-03"` → location; `"loc:a-1-3\r\n"` → location `A-01-03`; `" zap0101-25-neg\t"` → product `ZAP0101-25-NEG`; `"7501234567890"` → product; `"LOC:XYZ"` → invalid; `""` → invalid; `"ZAP 01"` → invalid; `"PROMO:DESC10"` → promo `DESC10`; `"promo:desc10\r\n"` → promo `desc10`; `"PROMO:"` → invalid; `"https://ejemplo.com/x"` y `"WWW.EJEMPLO.COM"` → promo con la lectura completa. |
 | T8 | `shared` · `pagination.test.ts` | Defaults (page 1, pageSize 20); coerción desde strings; rechazo de page 0, pageSize 0 y pageSize 101; `q: ""` → `undefined`; `sortQuery(['name','sku'])` acepta `"name:asc"` y rechaza `"price:asc"` y `"name:up"`; `paginated(X)` valida `items` y `total`. |
 | T9 | `shared` · `errors.test.ts` | `ApiErrorDto` acepta `{code:'NOT_FOUND', message:'…'}` (con y sin `details`); rechaza un código desconocido y un mensaje vacío. |
-| T10 | `shared` · `permissions.test.ts` | 24 códigos únicos con el formato de §6.4, cuyo primer segmento es su `module` y está en `PERMISSION_MODULES`. Los conjuntos de `SYSTEM_ROLES` son exactamente los de §6.4 (24/24/23/7/8) y solo contienen códigos del catálogo; `OWNER` es igual a todo `PERMISSIONS`. |
+| T10 | `shared` · `permissions.test.ts` | 25 códigos únicos con el formato de §6.4, cuyo primer segmento es su `module` y está en `PERMISSION_MODULES`. Los conjuntos de `SYSTEM_ROLES` son exactamente los de §6.4 (25/25/24/8/8) y solo contienen códigos del catálogo; `OWNER` es igual a todo `PERMISSIONS`. |
 | T11 | `shared` · `dto/dto.test.ts` | `it.each` sobre los 22 DTOs: la fixture válida pasa; se rechaza con `id` no UUID, con fecha no ISO y, en los DTOs con dinero, con un monto decimal. Cada campo nullable acepta `null`. |
 | T12 | `api` · `src/core/password.test.ts` | `hashPassword` produce `$argon2id$…`; `verifyPassword` da `true` con la contraseña correcta y `false` con otra; dos hashes de la misma contraseña son distintos. |
 | T13 | `api` · `test/unit/seed-env.test.ts` | `parseSeedEnv` acepta un env válido y lanza error que nombra la variable si falta `DATABASE_URL`, si falta `OWNER_INITIAL_PASSWORD` o `ADMIN_INITIAL_PASSWORD`, o si alguna tiene menos de 8 caracteres (`it.each`). |
-| T14 | `api` · `test/parity/enums.test.ts` | Cada uno de los 9 enums de `shared` coincide (mismo conjunto de valores) con el enum homónimo de `schema.prisma`, y no hay enums de Prisma sin contraparte. |
+| T14 | `api` · `test/parity/enums.test.ts` | Cada uno de los 10 enums de `shared` coincide (mismo conjunto de valores) con el enum homónimo de `schema.prisma`, y no hay enums de Prisma sin contraparte. |
 | T15 | `api` · `test/parity/dtos.test.ts` | Para cada uno de los 22 DTOs: sus claves son exactamente los campos escalares del modelo menos las exclusiones de §6.11, y un campo es `nullable` si y solo si es opcional en Prisma. Los modelos sin DTO son exactamente los 6 declarados. |
 | T16 | `api` · `test/integration/migrations.int.test.ts` | Tras el `globalSetup`, las 2 migraciones están aplicadas (`finished_at` no nulo) y `prisma migrate diff` (BD contra schema, `--exit-code`) no reporta diferencias. |
 | T17 | `api` · `test/integration/constraints.int.test.ts` | `it.each` sobre cada `CHECK` de §5.1: el caso inválido falla con un error que menciona el nombre de la restricción, y el caso base válido de cada tabla se inserta. |
 | T18 | `api` · `test/integration/unique-indexes.int.test.ts` | §5.2: la segunda sesión `OPEN` de una caja falla, pero `OPEN` en otra caja y `OPEN` + `CLOSED` en la misma pasan; el segundo `isDefault` de un usuario falla; la segunda zona de staging falla; una categoría raíz duplicada falla; una variante con atributos nulos duplicada falla; el mismo `locationCode` falla en el mismo almacén y pasa en otro. |
 | T19 | `api` · `test/integration/kardex.int.test.ts` | `INSERT` en `inventory_movement` funciona; `UPDATE` y `DELETE` fallan con "inventory_movement es inmutable". |
 | T20 | `api` · `test/integration/rack-occupancy.int.test.ts` | Un rack con dos `stock_location` (5/1 y 3/0) da `occupied_units` 8, `reserved_units` 1 y `free_units` = capacidad − 8; un rack sin stock da 0/0/capacidad. |
-| T21 | `api` · `test/integration/seed-base.int.test.ts` | Sobre una BD vacía: 24 permisos; 5 roles del sistema con 24/24/23/7/8 permisos; `owner` con rol `OWNER`, `mustChangePassword` y un hash que verifica con `OWNER_INITIAL_PASSWORD`; sucursal `S1` con los defaults de §7.2; contador en 0; cajas `C1`/`C2`; `ALM1`; zona `STG` (`isStaging`), contenedor `01` y rack `STG-01-01`; `admin` con rol `ADMIN`, `mustChangePassword` y un hash que verifica con la contraseña dada; `UserBranch` por defecto en `S1` para `owner` y `admin`; 3 categorías raíz. |
-| T22 | `api` · `test/integration/seed-base.int.test.ts` | Correr el seed 2 veces deja los mismos conteos y los mismos ids. Tras editar el nombre de la sucursal y el de `C1`, y tras cambiar los hashes de `owner` y `admin`, la segunda corrida conserva los cuatro cambios. |
+| T21 | `api` · `test/integration/seed-base.int.test.ts` | Sobre una BD vacía: 25 permisos; 5 roles del sistema con 25/25/24/8/8 permisos; `owner` con rol `OWNER`, `mustChangePassword` y un hash que verifica con `OWNER_INITIAL_PASSWORD`; sucursales `S1` y `S2` con los defaults de §7.2; en cada una, contador en 0, cajas `C1`/`C2`, `ALM1` y zona `STG` (`isStaging`) con contenedor `01` y rack `STG-01-01` (en total 2 sucursales, 4 cajas, 2 almacenes y 2 racks de staging); `admin` con rol `ADMIN`, `mustChangePassword` y un hash que verifica con la contraseña dada; `UserBranch` por defecto en `S1` para `owner` y `admin`; 3 categorías raíz. |
+| T22 | `api` · `test/integration/seed-base.int.test.ts` | Correr el seed 2 veces deja los mismos conteos y los mismos ids. Tras editar el nombre de `S1`, el de `S2` y el de `C1` de `S1`, y tras cambiar los hashes de `owner` y `admin`, la segunda corrida conserva los cinco cambios. |
 | T23 | `api` · `test/integration/seed-base.int.test.ts` | Tras quitar un permiso de `SELLER`, agregarle uno extra e insertar un permiso ajeno al catálogo (asignado a un usuario), la corrida restaura los conjuntos exactos de los roles y borra el permiso ajeno junto con sus asignaciones. |
 | T24 | `api` · `test/integration/seed-demo.int.test.ts` | Tras el seed base, el seed de demo crea 3 zonas, 6 contenedores y 24 racks (de `A-01-01` a `C-02-04`, con capacidad 40), 2 marcas, 4 productos y 14 variantes (`ACC0301` con su variante por defecto), y deja 0 `stock_location` y 0 `inventory_movement`. Una segunda corrida no duplica nada. |
 | T25 | `api` · `test/integration/seed-demo.int.test.ts` | Sin seed base, el seed de demo lanza el error "Ejecuta primero `pnpm db:seed`" y no escribe ninguna fila. |
+| T26 | `shared` · `scanClassifier.test.ts` | `toPromoQrPayload` (`it.each`): `"DESC10"` → `"PROMO:DESC10"`; `"https://ejemplo.com"`, `"http://x.mx"` y `"www.ejemplo.com"` se devuelven sin cambio. `classifyScan(toPromoQrPayload(t))` da `promo` con `text` igual a `t` para `"DESC10"` y para `"www.ejemplo.com"`. |
 
 No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 
@@ -1012,7 +1027,7 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | # | Criterio | Evidencia esperada |
 |---|---|---|
 | CA1 | `prisma migrate dev` y `pnpm db:seed` funcionan sobre una BD de desarrollo vacía, y el seed se puede ejecutar dos veces sin duplicar datos. | T16, T21, T22 + salida de los comandos en §14 |
-| CA2 | Pasan los tests de `shared`: dinero, normalización de SKU, construcción y parseo de `locationCode`, clasificador de escaneo, paginación, errores, permisos y DTOs. | T1–T11 |
+| CA2 | Pasan los tests de `shared`: dinero, normalización de SKU, construcción y parseo de `locationCode`, clasificador de escaneo (incluida la promoción), paginación, errores, permisos y DTOs. | T1–T11, T26 |
 | CA3 | Las garantías de BD (`CHECK`, índices especiales, kardex inmutable y vista) son efectivas. | T17–T20 |
 | CA4 | `shared` y Prisma no divergen en enums ni en campos de DTO. | T14, T15 |
 | CA5 | El seed de demo crea estructura y catálogo sin escribir stock. | T24, T25 |
@@ -1048,3 +1063,7 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-01 | `User` → tabla `app_user`; sin `created_by_id`; `Rack.warehouseId` desnormalizado; `CHECK` de forma del kardex y trigger de inmutabilidad. | Propuesta del agente; revisar al aprobar |
 | 2026-10-02 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
 | 2026-10-03 | Nuevo rol del sistema `OWNER` ("Propietario"), único, con todos los permisos del catálogo. El seed crea el usuario aparte `owner` con `OWNER_INITIAL_PASSWORD`; `admin` sigue como Administrador. Cambian §6.4, §7, §8 y los tests T10, T13, T21 y T22. | Usuario (chat), durante la redacción de F4; plan §6.2, §8 F1 y §10.1 actualizados |
+| 2026-10-03 | QR de promoción: se quita `Branch.promoQrImageUrl` y se agrega `promoQrCaption`. El QR se genera desde `promoQrText` y la descripción se imprime debajo. | Usuario (chat), durante la redacción de F5; plan §4.2 actualizado |
+| 2026-10-03 | `classifyScan` reconoce el QR de promoción (`kind: 'promo'`): prefijo `PROMO:` o un enlace. `toPromoQrPayload` decide el contenido del QR. Nuevo test T26 (total 26). | Usuario (chat), durante la redacción de F5; plan §5.3 y §7.1 actualizados |
+| 2026-10-03 | El seed crea una segunda sucursal `S2` ("Sucursal 2") con sus cajas `C1`/`C2`, almacén y staging. Permiso nuevo `inventory.other_branches.read` (25 en el catálogo; también para el Vendedor). Cambian §6.4, §7.2 y los tests T10, T21 y T22. | Usuario (chat), durante la revisión de F6; plan §1.2, §4.2, §6.2, §8 F1, F7, F8 y §11 actualizados |
+| 2026-10-03 | Enum nuevo `AdjustmentReason` (Conteo físico, Merma o daño, Extravío, Hallazgo, Error de captura, Otro) y campo `InventoryMovement.adjustmentReason`, obligatorio solo en los ajustes (`CHECK inventory_movement_adjustment_reason_check`). Pasan a ser 10 enums (T14); T17 cubre el `CHECK` nuevo. | Usuario (chat), durante la redacción de F7; plan §8 F7 actualizado |

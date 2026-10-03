@@ -306,18 +306,18 @@ Todos van bajo `/api/v1`. Las respuestas de error son `ApiErrorDto`. Los textos 
 
 ## 8. `InventoryService` (núcleo, sin endpoints)
 
-Firma común: `método(tx, input)`. Todo `input` incluye `userId` y, opcionalmente, `note` y `reference: { type: InventoryReferenceType, id }`. `quantity` se valida con `Quantity` de `shared`. Cada método inserta su `InventoryMovement` y devuelve `{ movement, balances: { rackId, quantity, reservedQty }[] }`.
+Firma común: `método(tx, input)`. Todo `input` incluye `userId` y, opcionalmente, `note`, `adjustmentReason` (`AdjustmentReason` de F1) y `reference: { type: InventoryReferenceType, id }`. `quantity` se valida con `Quantity` de `shared`. Cada método inserta su `InventoryMovement` y devuelve `{ movement, balances: { rackId, quantity, reservedQty }[] }`.
 
 | Método | Movimiento | Regla |
 |---|---|---|
-| `receive({ type: 'INITIAL_LOAD' \| 'PUTAWAY' \| 'ADJUSTMENT_IN', variantId, rackId, quantity, overrideCapacity? })` | `type` → `toRack` | Destino activo. Capacidad (salvo staging). Upsert `quantity += n`. `ADJUSTMENT_IN` exige `note`. |
+| `receive({ type: 'INITIAL_LOAD' \| 'PUTAWAY' \| 'ADJUSTMENT_IN', variantId, rackId, quantity, overrideCapacity? })` | `type` → `toRack` | Destino activo. Capacidad (salvo staging). Upsert `quantity += n`. `ADJUSTMENT_IN` exige `note` y `adjustmentReason`. |
 | `relocate({ variantId, fromRackId, toRackId, quantity, overrideCapacity? })` | `RELOCATE` | Mismo almacén, racks distintos y destino activo. Toma unidades **disponibles** del origen (`quantity - reserved_qty >= n`). Capacidad del destino. |
 | `moveReservedToStaging({ variantId, fromRackId, quantity })` | `TO_STAGING` → rack de staging del mismo almacén | Toma unidades **reservadas** del origen (`quantity -= n`, `reserved_qty -= n`, con `reserved_qty >= n`). Staging recibe `quantity += n`. |
 | `pick({ variantId, rackId, quantity })` | `PICK` | `reserved_qty += n` si `quantity - reserved_qty >= n`. |
 | `release({ variantId, rackId, quantity })` | `RETURN_TO_RACK` | `reserved_qty -= n` si `reserved_qty >= n`. |
 | `sell({ variantId, rackId, quantity })` | `SALE` | `quantity -= n` y `reserved_qty -= n` si `reserved_qty >= n`. |
 | `returnCancelledSaleToStaging({ variantId, warehouseId, quantity })` | `SALE_CANCEL` → staging | Staging del almacén indicado, `quantity += n`. |
-| `adjustOut({ variantId, rackId, quantity })` | `ADJUSTMENT_OUT` | Exige `note`. Solo unidades disponibles. |
+| `adjustOut({ variantId, rackId, quantity })` | `ADJUSTMENT_OUT` | Exige `note` y `adjustmentReason`. Solo unidades disponibles. |
 
 **Errores:**
 
@@ -329,7 +329,7 @@ Firma común: `método(tx, input)`. Todo `input` incluye `userId` y, opcionalmen
 | Mismo rack; staging inexistente o inactivo; reservadas insuficientes (`release`, `sell`, `moveReservedToStaging`) | `INVENTORY_INVALID_OPERATION` |
 | Disponibles insuficientes (`relocate`, `pick`, `adjustOut`) | `STOCK_INSUFFICIENT`, con `details: { available, requested }` |
 | Capacidad excedida sin `overrideCapacity` | `RACK_CAPACITY_EXCEEDED`, con `details: { rackId, locationCode, capacity, occupied, requested }` |
-| Falta `note` en un ajuste | `VALIDATION_ERROR` (`path: 'note'`) |
+| Falta `note` o `adjustmentReason` en un ajuste, o viene `adjustmentReason` en otro tipo | `VALIDATION_ERROR` (`path: 'note'` o `'adjustmentReason'`) |
 
 **Capacidad:**
 1. Bloquear el rack destino (`FOR UPDATE`; en `relocate`, ambos racks en orden de id).
@@ -442,7 +442,7 @@ Los marcados con "int" corren contra `postgres-test` con `app.inject`. Para simu
 | T19 | `int` · `access.int.test.ts` | Sobre rutas de prueba: sin token → 401 `UNAUTHENTICATED`; firma inválida → 401; token sin el permiso → 403 `FORBIDDEN` con `details.permission`; con el permiso → 200; ruta `authenticated` con cualquier token válido → 200. |
 | T20 | `int` · `auth-password.int.test.ts` | Usuario con `mustChangePassword`: `GET /auth/me` 200, ruta protegida 403 `AUTH_PASSWORD_CHANGE_REQUIRED`, logout 204. |
 | T21 | `int` · `auth-password.int.test.ts` | Contraseña actual incorrecta → 400 `AUTH_PASSWORD_INCORRECT`; nueva igual a la actual → 400 `VALIDATION_ERROR`. Éxito → 200 `AuthSessionDto` con `mustChangePassword: false`; el refresh de **otra** sesión del mismo usuario → 401; la cookie nueva sí refresca; el token nuevo accede a la ruta protegida; la nueva contraseña verifica con argon2; hay `AuditLog` `auth.password_change`. |
-| T22 | `int` · `auth-claims.int.test.ts` | Propietario y Admin: `branchIds` = todas las sucursales activas. Usuario `SELLER` con 1 permiso extra: `perms` = 7 + 1. Una sucursal inactiva no aparece. `defaultBranchId` corresponde a `isDefault`; `mcp` refleja `mustChangePassword`. |
+| T22 | `int` · `auth-claims.int.test.ts` | Propietario y Admin: `branchIds` = todas las sucursales activas. Usuario `SELLER` con 1 permiso extra: `perms` = 8 + 1. Una sucursal inactiva no aparece. `defaultBranchId` corresponde a `isDefault`; `mcp` refleja `mustChangePassword`. |
 | T23 | `int` · `branch-context.int.test.ts` | Ruta de prueba `branchScoped`: sin header → sucursal por defecto; con una sola sucursal y sin default → esa; header permitido → esa; header no permitido → 403 `BRANCH_FORBIDDEN`; header no UUID → 400 `VALIDATION_ERROR`; 2 sucursales sin default y sin header → 400 `BRANCH_REQUIRED`. |
 | T24 | `int` · `auth-me.int.test.ts` | `me` devuelve el `MeDto` leído de la BD (incluye un permiso extra agregado después del login). Usuario desactivado con un token aún vigente → 401. |
 | T25 | `int` · `auth-revoke.int.test.ts` | `revokeAllForUser(A)` revoca todos los tokens activos de A (de varias familias) y no toca los de B. |
@@ -450,12 +450,12 @@ Los marcados con "int" corren contra `postgres-test` con `app.inject`. Para simu
 | T27 | `int` · `uploads.int.test.ts` | JPEG de 3000×2000 generado con sharp → 201 `ImageUploadDto`. Los dos archivos existen en un `UPLOADS_DIR` temporal: WebP de 1600×1067 y miniatura con lado mayor 400. PNG y WebP también se aceptan. `GET` de la URL (static de desarrollo) → 200 `image/webp`. `branch-images` guarda en `branch/`. |
 | T28 | `int` · `uploads.int.test.ts` | Sin `products.manage` → 403; `branch-images` sin `settings.branch` → 403; texto con extensión `.jpg` → 415; GIF → 415; 10 MiB + 1 byte → 413 `PAYLOAD_TOO_LARGE`; sin archivo → 400 `VALIDATION_ERROR`. En todos los casos de error no queda ningún archivo escrito. |
 | T29 | `int` · `audit.int.test.ts` | `record` guarda `userId`, `action`, `entity`, `entityId`, `payload` e `ip`. Dentro de un `tx` que luego falla, no queda la fila. |
-| T30 | `int` · `inventory-receive.int.test.ts` | `INITIAL_LOAD` crea el `stock_location` y su movimiento (forma `to`); un segundo `PUTAWAY` acumula; staging ignora la capacidad; rack inactivo → `RACK_INACTIVE`; variante inexistente → `NOT_FOUND`; `ADJUSTMENT_IN` sin `note` → `VALIDATION_ERROR`. |
+| T30 | `int` · `inventory-receive.int.test.ts` | `INITIAL_LOAD` crea el `stock_location` y su movimiento (forma `to`); un segundo `PUTAWAY` acumula; staging ignora la capacidad; rack inactivo → `RACK_INACTIVE`; variante inexistente → `NOT_FOUND`; `ADJUSTMENT_IN` sin `note` o sin `adjustmentReason` → `VALIDATION_ERROR`; con ambos, el movimiento guarda el motivo. |
 | T31 | `int` · `inventory-capacity.int.test.ts` | Exceder la capacidad → `RACK_CAPACITY_EXCEEDED` con los `details` de §8 y sin escrituras. Con `overrideCapacity` → OK y `capacityOverridden: true`. Justo en el límite → OK. |
 | T32 | `int` · `inventory-relocate.int.test.ts` | `relocate` mueve unidades disponibles; con unidades reservadas en el origen, pedir más que las disponibles → `STOCK_INSUFFICIENT` con `available`; distinto almacén → `INVENTORY_CROSS_WAREHOUSE`; mismo rack → `INVENTORY_INVALID_OPERATION`; destino lleno → `RACK_CAPACITY_EXCEEDED`; desde un origen inactivo → OK. |
 | T33 | `int` · `inventory-pos.int.test.ts` | `pick` reserva; un `pick` mayor que lo disponible → `STOCK_INSUFFICIENT`; `release` libera; un `release` mayor que lo reservado → `INVENTORY_INVALID_OPERATION`; `sell` descuenta existencia y reserva. Los movimientos llevan `reference` `CART`/`SALE`. |
 | T34 | `int` · `inventory-staging.int.test.ts` | `moveReservedToStaging` mueve unidades reservadas al rack `STG-01-01` del mismo almacén; `returnCancelledSaleToStaging` suma en staging con `SALE_CANCEL`; un almacén sin staging activo → `INVENTORY_INVALID_OPERATION`. |
-| T35 | `int` · `inventory-adjust.int.test.ts` | `adjustOut` exige `note`, no toma unidades reservadas (`STOCK_INSUFFICIENT`) y descuenta las disponibles. |
+| T35 | `int` · `inventory-adjust.int.test.ts` | `adjustOut` exige `note` y `adjustmentReason`, no toma unidades reservadas (`STOCK_INSUFFICIENT`) y descuenta las disponibles. |
 | T36 | `int` · `inventory-atomicity.int.test.ts` | Un `receive` dentro de un `$transaction` que luego lanza un error no deja `stock_location` ni `inventory_movement`. |
 | T37 | `int` · `inventory-kardex.int.test.ts` | Tras una secuencia fija de 12 operaciones, reproducir los movimientos del kardex (función de test que aplica la tabla de efectos de F1 §4.5) da exactamente `quantity` y `reserved_qty` de cada `stock_location`. |
 | T38 | `int` · `inventory-concurrency.int.test.ts` | Con 1 unidad disponible, 2 `pick` en paralelo (transacciones separadas) → uno OK y uno `STOCK_INSUFFICIENT`; `reserved_qty = 1`. |
@@ -510,3 +510,5 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T1,
 | 2026-10-02 | Se adaptan tests de F0 (T1, T3, T4, T5 y T7 de web) por el cambio de `HealthDto` y de la configuración (regresión declarada). | Propuesta del agente; aprobada por el usuario (2026-10-02) |
 | 2026-10-02 | El usuario aprueba la spec completa, incluidas las propuestas del agente. Spec pasa a `LISTA`. | Usuario (chat) |
 | 2026-10-03 | Rol `OWNER` ("Propietario"): recibe todas las sucursales activas en `branchIds`, igual que el Administrador. Cambian §2 (claims) y los tests T4 y T22. | Usuario (chat), durante la redacción de F4; F1 §6.4 y plan §6.2 actualizados |
+| 2026-10-03 | El Vendedor tiene 8 permisos (se agrega `inventory.other_branches.read`) y el seed crea `S2`; cambia T22. | Usuario (chat), durante la revisión de F6; F1 §6.4 y §7.2 actualizados |
+| 2026-10-03 | Los ajustes (`ADJUSTMENT_IN`/`ADJUSTMENT_OUT`) exigen `adjustmentReason` además de `note`; cambian §8, T30 y T35. | Usuario (chat), durante la redacción de F7; F1 §4.1 y §4.5 actualizados |
