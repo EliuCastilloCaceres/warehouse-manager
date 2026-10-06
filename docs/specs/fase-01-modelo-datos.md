@@ -91,7 +91,7 @@ Referencias: plan §3 (convenciones), §4 (modelo y reglas), §5 (códigos de ub
 | `onDelete` | `Restrict` por defecto. `Cascade` solo en: `RolePermission` (→ `Role`, → `Permission`), `UserPermission` (→ `Permission`), `ProductVariant` → `Product`, `ProductImage` → `Product` y `CartItem` → `Cart`. `SetNull` en `ProductImage.variantId`. |
 | Migraciones | Dos: `init` (generada por Prisma) y `constraints` (creada con `prisma migrate dev --create-only` y escrita a mano). Una migración aplicada no se edita: los cambios van en migraciones nuevas. |
 | Drift | Después de aplicar las migraciones, `prisma migrate diff` (BD migrada contra `schema.prisma`, con `--exit-code`) no debe reportar diferencias (T16). Así se detecta si Prisma intenta borrar un índice manual. |
-| `created_by_id` | No se agrega a las entidades. La autoría queda en `AuditLog` y en los campos que el plan ya define (`openedById`, `sellerId`, `userId`, etc.). |
+| `created_by_id` | No se agrega a las entidades. La autoría queda en `AuditLog` y en los campos que el plan ya define (`openedById`, `sellerId`, `cashierId`, `userId`, etc.). |
 | Contraseñas | argon2id (`argon2`) con `memoryCost 19456` KiB, `timeCost 2` y `parallelism 1` (mínimo de OWASP). |
 | BD de pruebas | Servicio `postgres-test` (puerto 5433, `tmpfs`, BD `warehouse_test`). El `globalSetup` de Jest se niega a correr si `TEST_DATABASE_URL` no termina en `_test` o si es igual a `DATABASE_URL`. Después hace `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` y `prisma migrate deploy`. Cada suite limpia con `TRUNCATE … RESTART IDENTITY CASCADE`. |
 | Jest en `api` | Dos *projects*: `unit` (`src/**/*.test.ts`, `test/unit/**/*.test.ts`, `test/parity/**/*.test.ts`) e `integration` (`test/integration/**/*.int.test.ts`, con `globalSetup`). `pnpm test` corre ambos con `--runInBand` y requiere `pnpm dev:db`. Si la BD de pruebas no responde, falla con un mensaje en español que indica cómo levantarla. |
@@ -470,15 +470,16 @@ model InventoryMovement {
 ```prisma
 model Cart {
   id            String     @id
-  cashSessionId String                           // FK CashSession (Restrict)
+  branchId      String                           // FK Branch (Restrict); el carrito es de la sucursal, no de una caja (F8)
   userId        String                           // FK User (Restrict)
+  number        Int                              // número corto (1–999), único entre los carritos abiertos de la sucursal (F8)
   status        CartStatus @default(ACTIVE)
   label         String?
   customerName  String?
   discount      Int        @default(0)           // descuento global, centavos
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
-  @@index([cashSessionId, status])
+  @@index([branchId, status])
 }
 
 model CartItem {
@@ -501,7 +502,8 @@ model Sale {
   branchId         String                        // FK Branch (Restrict)
   cashRegisterId   String                        // FK CashRegister (Restrict)
   cashSessionId    String                        // FK CashSession (Restrict)
-  sellerId         String                        // FK User "SaleSeller" (Restrict)
+  sellerId         String                        // FK User "SaleSeller" (Restrict); quien armó el carrito
+  cashierId        String                        // FK User "SaleCashier" (Restrict); quien cobró (F8)
   cartId           String     @unique            // FK Cart (Restrict)
   customerName     String?
   subtotal         Int                           // Σ unitPrice × quantity
@@ -587,6 +589,7 @@ Cada restricción lleva el nombre exacto de esta tabla. T17–T20 verifican cada
 | `inventory_movement_reference_check` | inventory_movement | `(reference_type IS NULL) = (reference_id IS NULL)` |
 | `inventory_movement_adjustment_reason_check` | inventory_movement | `(adjustment_reason IS NOT NULL) = (type IN ('ADJUSTMENT_IN', 'ADJUSTMENT_OUT'))` |
 | `cart_discount_check` | cart | `discount >= 0` |
+| `cart_number_check` | cart | `number BETWEEN 1 AND 999` |
 | `cart_item_amounts_check` | cart_item | `quantity > 0 AND unit_price >= 0 AND discount >= 0 AND discount <= unit_price * quantity` |
 | `sale_amounts_check` | sale | `subtotal >= 0 AND global_discount >= 0 AND discount_total >= global_discount AND tax_total >= 0 AND total >= 0 AND tax_rate_bp BETWEEN 0 AND 10000` |
 | `sale_total_check` | sale | `total = subtotal - discount_total + CASE WHEN prices_include_tax THEN 0 ELSE tax_total END` |
@@ -603,6 +606,8 @@ La suma de `payment.amount` = `sale.total` se valida en el servicio de F8, no en
 |---|---|
 | `cash_session_one_open_per_register` | `UNIQUE (cash_register_id) WHERE status = 'OPEN'` |
 | `user_branch_one_default` | `UNIQUE (user_id) WHERE is_default` |
+| `cart_one_active_per_user_branch` | `UNIQUE (branch_id, user_id) WHERE status = 'ACTIVE'` |
+| `cart_number_open_per_branch` | `UNIQUE (branch_id, number) WHERE status IN ('ACTIVE', 'SUSPENDED')` |
 | `zone_one_staging_per_warehouse` | `UNIQUE (warehouse_id) WHERE is_staging` |
 | `category_parent_id_name_key` | Se recrea como `UNIQUE NULLS NOT DISTINCT (parent_id, name)` |
 | `product_variant_product_id_size_color_material_key` | Se recrea como `UNIQUE NULLS NOT DISTINCT (product_id, size, color, material)` |
@@ -1008,7 +1013,7 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 | T15 | `api` · `test/parity/dtos.test.ts` | Para cada uno de los 22 DTOs: sus claves son exactamente los campos escalares del modelo menos las exclusiones de §6.11, y un campo es `nullable` si y solo si es opcional en Prisma. Los modelos sin DTO son exactamente los 6 declarados. |
 | T16 | `api` · `test/integration/migrations.int.test.ts` | Tras el `globalSetup`, las 2 migraciones están aplicadas (`finished_at` no nulo) y `prisma migrate diff` (BD contra schema, `--exit-code`) no reporta diferencias. |
 | T17 | `api` · `test/integration/constraints.int.test.ts` | `it.each` sobre cada `CHECK` de §5.1: el caso inválido falla con un error que menciona el nombre de la restricción, y el caso base válido de cada tabla se inserta. |
-| T18 | `api` · `test/integration/unique-indexes.int.test.ts` | §5.2: la segunda sesión `OPEN` de una caja falla, pero `OPEN` en otra caja y `OPEN` + `CLOSED` en la misma pasan; el segundo `isDefault` de un usuario falla; la segunda zona de staging falla; una categoría raíz duplicada falla; una variante con atributos nulos duplicada falla; el mismo `locationCode` falla en el mismo almacén y pasa en otro. |
+| T18 | `api` · `test/integration/unique-indexes.int.test.ts` | §5.2: la segunda sesión `OPEN` de una caja falla, pero `OPEN` en otra caja y `OPEN` + `CLOSED` en la misma pasan; el segundo `isDefault` de un usuario falla; un segundo carrito `ACTIVE` del mismo usuario en la misma sucursal falla, pero uno `SUSPENDED`, el de otro usuario o el de otra sucursal pasan; el mismo `number` en dos carritos abiertos de la sucursal falla, pero pasa si uno está `CHECKED_OUT` o `DISCARDED`; la segunda zona de staging falla; una categoría raíz duplicada falla; una variante con atributos nulos duplicada falla; el mismo `locationCode` falla en el mismo almacén y pasa en otro. |
 | T19 | `api` · `test/integration/kardex.int.test.ts` | `INSERT` en `inventory_movement` funciona; `UPDATE` y `DELETE` fallan con "inventory_movement es inmutable". |
 | T20 | `api` · `test/integration/rack-occupancy.int.test.ts` | Un rack con dos `stock_location` (5/1 y 3/0) da `occupied_units` 8, `reserved_units` 1 y `free_units` = capacidad − 8; un rack sin stock da 0/0/capacidad. |
 | T21 | `api` · `test/integration/seed-base.int.test.ts` | Sobre una BD vacía: 25 permisos; 5 roles del sistema con 25/25/24/8/8 permisos; `owner` con rol `OWNER`, `mustChangePassword` y un hash que verifica con `OWNER_INITIAL_PASSWORD`; sucursales `S1` y `S2` con los defaults de §7.2; en cada una, contador en 0, cajas `C1`/`C2`, `ALM1` y zona `STG` (`isStaging`) con contenedor `01` y rack `STG-01-01` (en total 2 sucursales, 4 cajas, 2 almacenes y 2 racks de staging); `admin` con rol `ADMIN`, `mustChangePassword` y un hash que verifica con la contraseña dada; `UserBranch` por defecto en `S1` para `owner` y `admin`; 3 categorías raíz. |
@@ -1067,3 +1072,6 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-03 | `classifyScan` reconoce el QR de promoción (`kind: 'promo'`): prefijo `PROMO:` o un enlace. `toPromoQrPayload` decide el contenido del QR. Nuevo test T26 (total 26). | Usuario (chat), durante la redacción de F5; plan §5.3 y §7.1 actualizados |
 | 2026-10-03 | El seed crea una segunda sucursal `S2` ("Sucursal 2") con sus cajas `C1`/`C2`, almacén y staging. Permiso nuevo `inventory.other_branches.read` (25 en el catálogo; también para el Vendedor). Cambian §6.4, §7.2 y los tests T10, T21 y T22. | Usuario (chat), durante la revisión de F6; plan §1.2, §4.2, §6.2, §8 F1, F7, F8 y §11 actualizados |
 | 2026-10-03 | Enum nuevo `AdjustmentReason` (Conteo físico, Merma o daño, Extravío, Hallazgo, Error de captura, Otro) y campo `InventoryMovement.adjustmentReason`, obligatorio solo en los ajustes (`CHECK inventory_movement_adjustment_reason_check`). Pasan a ser 10 enums (T14); T17 cubre el `CHECK` nuevo. | Usuario (chat), durante la redacción de F7; plan §8 F7 actualizado |
+| 2026-10-05 | `Sale.cashierId` (FK `User` "SaleCashier", quien cobró; `sellerId` es quien armó el carrito) e índice único parcial de un carrito `ACTIVE` por usuario. Cambian §4.6, §5.2, T15 (por el campo nuevo de `SaleDto`) y T18. | Usuario (chat), durante la redacción de F8; plan §4.1 y §4.2 actualizados |
+| 2026-10-05 | `Cart.cashSessionId` se reemplaza por `Cart.branchId`: el vendedor arma el carrito sin elegir caja ("Atender") y la venta se registra en la caja que cobra. El índice parcial queda `cart_one_active_per_user_branch` (`UNIQUE (branch_id, user_id) WHERE status = 'ACTIVE'`). Cambian §4.6, §5.2, T15 (`CartDto`) y T18. | Usuario (chat), durante la revisión de F8; plan §4.1, §4.2 y §4.3 actualizados |
+| 2026-10-05 | `Cart.number` (número corto 1–999, `CHECK cart_number_check`) e índice parcial `cart_number_open_per_branch`: único entre los carritos `ACTIVE`/`SUSPENDED` de la sucursal y reutilizable cuando el carrito se cobra o se descarta. Cambian §4.6, §5.1, §5.2, T15 (`CartDto`), T17 y T18. | Usuario (chat), durante la revisión de F8; plan §4.2 actualizado |

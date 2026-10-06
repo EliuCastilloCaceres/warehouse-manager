@@ -1,7 +1,7 @@
 ---
 id: fase-07
 titulo: Almacén e inventario
-estado: BORRADOR
+estado: LISTA
 depende_de: [fase-06]
 autoriza_codigo_en:
   - "apps/api/src/modules/warehouse/**"
@@ -536,3 +536,4 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | 2026-10-03 | Hoja de etiquetas de ubicación de 2×5 (10 por hoja). | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | Stock de demo según §7, con `ZAP0101-26-NEG` agotado en `S1` y disponible en `S2`; T24 de F1 se adapta (regresión declarada). | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | Audit de `warehouse.code_change`, `warehouse.deactivate`, `warehouse.delete` e `inventory.adjust`; 4 códigos de error nuevos. | Propuesta del agente; revisar al aprobar |
+| 2026-10-05 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |

@@ -93,7 +93,7 @@ Sin cambios de schema. Usa `Branch` y `CashRegister` de F1 §4.2, con el cambio 
 | Zona horaria | `isValidTimeZone(tz)` en `shared`: `new Intl.DateTimeFormat('es-MX', { timeZone: tz })` no lanza. La UI ofrece primero las zonas de México (`America/Mexico_City`, `Cancun`, `Merida`, `Monterrey`, `Chihuahua`, `Hermosillo`, `Mazatlan`, `Tijuana`) y luego "Otras" desde `Intl.supportedValuesOf('timeZone')`. |
 | IVA en la UI | Se captura como porcentaje con hasta 2 decimales (`16` → 1600, `16.5` → 1650) y se guarda en puntos base (`BasisPoints`, 0–10000). |
 | QR de promoción | `promoBlock(branch)` en `shared` decide qué se imprime (§8). El QR se dibuja con `QrCode` de F3 (corrección `M`) a partir de `toPromoQrPayload(promoQrText)` (F1 §6.8): un enlace va tal cual (el celular del cliente lo abre) y cualquier otro texto, como `PROMO:<texto>`. Al escanearlo, `classifyScan` lo reconoce como `promo`: el POS (F8) muestra el texto y, con `pos.discount`, ofrece aplicar el descuento a mano. El código no se valida. |
-| Componentes del ticket | `apps/web/src/shared/ticket/`: `TicketHeader` (logo, nombre, razón social, RFC, dirección, teléfono, `ticketHeader`), `TicketFooter` (`ticketFooterMessage` + `PromoBlock`) y `PromoBlock`. Reciben un `BranchDto` (o los valores del formulario) y un ancho (`80` \| `58`). F8 los reutiliza para el ticket real. |
+| Componentes del ticket | `apps/web/src/shared/ticket/`: `TicketHeader` (logo, nombre, razón social, RFC, dirección, teléfono, `ticketHeader`), `TicketFooter` (`ticketFooterMessage` + `PromoBlock`) y `PromoBlock`. Reciben solo los campos de ticket de la sucursal (`Pick<BranchDto, …>` con los campos de `TicketBranchDto` de F8), así que aceptan un `BranchDto`, los valores del formulario o los datos del ticket de F8, y un ancho (`80` \| `58`). F8 los reutiliza para el ticket real. |
 | Vista previa | `TicketPreview` en `features/settings/` = `TicketHeader` + cuerpo de ejemplo + `TicketFooter`, dentro de un contenedor de 72 mm (80) o 48 mm (58). Lee los valores **sin guardar** del formulario (`watch()`), así que se actualiza mientras se escribe. Muestra "— Vista previa —" arriba. |
 | Cuerpo de ejemplo | Folio `S1-000000`, la fecha y hora actual en la zona horaria del formulario, el cajero (`me.user.fullName`), 2 partidas ficticias (`Zapato de piel dama 25 Negro` 1 × $899.00 y `Cinturón de piel` 1 × $349.00), subtotal, IVA, total y pago en efectivo con cambio. |
 | Totales de la vista previa | `previewTotals(lines, taxRateBp, pricesIncludeTax)` en `features/settings/`. Con IVA incluido: `total = Σ líneas`, `iva = total − round(total × 10000 / (10000 + bp))`. Sin IVA incluido: `iva = applyBasisPoints(subtotal, bp)` y `total = subtotal + iva`. Es **provisional**: F8 define las reglas definitivas y reemplaza este cálculo. |
@@ -291,7 +291,7 @@ Con precios sin IVA, los totales se muestran como "Subtotal", "IVA 16 %" y "Tota
 9. **Sucursal o caja fuera de las sucursales del actor** → 403 `BRANCH_FORBIDDEN`.
 10. **`PATCH` sin cambios reales** → 200 sin escritura ni audit.
 11. **Dos administradores editan a la vez:** gana la última escritura (sin bloqueo optimista en el MVP).
-12. **Vendedor en el POS:** no puede leer `GET /branches/:id` (requiere `settings.branch`). F8 define cómo obtiene los datos del ticket.
+12. **Vendedor en el POS:** no puede leer `GET /branches/:id` (requiere `settings.branch`). F8 le entrega los datos del ticket en `SaleTicketDto.branch` y en `GET /pos/branch` (`pos.sell`).
 
 ---
 
@@ -408,3 +408,4 @@ El criterio del plan "los cambios se reflejan después en los tickets reales" se
 | 2026-10-03 | Los datos del ticket para el vendedor del POS (sin `settings.branch`) los resuelve F8. | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
 | 2026-10-03 | El seed crea una segunda sucursal `S2` con sus cajas `C1`/`C2`; en T11 y T13, "otra sucursal" puede ser `S2`. | Usuario (chat), durante la revisión de F6; F1 §7.2 actualizado |
+| 2026-10-05 | `TicketHeader`, `TicketFooter` y `PromoBlock` reciben solo los campos de ticket (`Pick<BranchDto, …>`), para que F8 les pase `TicketBranchDto`. F8 entrega los datos del ticket al vendedor y reemplaza `previewTotals` por `computeSaleTotals` (mismos montos). | Usuario (chat), durante la redacción de F8 |

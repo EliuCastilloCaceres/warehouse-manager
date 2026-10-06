@@ -298,7 +298,7 @@ erDiagram
 
 ```mermaid
 erDiagram
-    CASH_SESSION ||--o{ CART : ""
+    BRANCH ||--o{ CART : ""
     CART ||--o{ CART_ITEM : ""
     PRODUCT_VARIANT ||--o{ CART_ITEM : ""
     RACK ||--o{ CART_ITEM : "origen"
@@ -307,10 +307,11 @@ erDiagram
     SALE ||--|{ PAYMENT : ""
     PRODUCT_VARIANT ||--o{ SALE_ITEM : ""
     USER ||--o{ SALE : vende
+    USER ||--o{ SALE : cobra
 
     CART {
         uuid id PK
-        uuid cash_session_id FK
+        uuid branch_id FK
         uuid user_id FK
         string status
         string label
@@ -330,6 +331,7 @@ erDiagram
         uuid cash_register_id FK
         uuid cash_session_id FK
         uuid seller_id FK
+        uuid cashier_id FK
         int subtotal
         int discount_total
         int tax_total
@@ -363,7 +365,7 @@ erDiagram
 |---|---|---|
 | `Branch` (sucursal) | `code`, `name`, `legalName`, `taxId`, `address`, `phone`, `email`, `imageUrl`, `logoUrl`, `ticketHeader`, `ticketFooterMessage`, `promoQrText` (contenido del QR, que genera el sistema), `promoQrCaption` (descripción impresa bajo el QR), `timezone`, `currency`, `taxRateBp` (puntos base, 1600 = 16 %), `pricesIncludeTax`, `lowStockThreshold` (umbral de stock bajo, 2 por defecto), `isActive` | En el MVP existen las 2 sucursales del seed (S1 y S2) y únicamente se **editan**. Valores del seed: MXN, IVA 16 % incluido en los precios (§13, respondido 2026-10-01). |
 | `BranchCounter` | `branchId`, `key` (`SALE_FOLIO`), `value` | Consecutivos por sucursal. Se incrementa con `UPDATE … RETURNING` dentro de la transacción de venta. |
-| `CashRegister` (caja) | `branchId`, `code`, `name`, `isActive` | El seed crea 2 cajas en la sucursal 1. En el MVP solo se editan. |
+| `CashRegister` (caja) | `branchId`, `code`, `name`, `isActive` | El seed crea 2 cajas en cada sucursal. En el MVP solo se editan. |
 | `CashSession` (turno de caja) | `cashRegisterId`, `openedById`, `openedAt`, `openingAmount`, `closedById`, `closedAt`, `expectedAmount`, `countedAmount`, `difference`, `status` (`OPEN`/`CLOSED`) | **Máximo 1 sesión `OPEN` por caja**, garantizado con un índice único parcial. Para vender se requiere una sesión abierta. |
 
 #### Seguridad
@@ -417,9 +419,9 @@ erDiagram
 #### Punto de venta
 | Entidad | Campos clave | Reglas |
 |---|---|---|
-| `Cart` | `cashSessionId`, `userId`, `status` (`ACTIVE`/`SUSPENDED`/`CHECKED_OUT`/`DISCARDED`), `label?` (por ejemplo "Señora vestido rojo"), `customerName?`, `discount` (descuento global en centavos) | **Máximo 5 carritos `SUSPENDED` por sesión de caja**, más el activo. Se guardan en el servidor para que las reservas sean consistentes y sobrevivan a una recarga. |
+| `Cart` | `branchId`, `userId`, `number` (número corto, p. ej. "#12", para identificarlo en caja; decisión 2026-10-05), `status` (`ACTIVE`/`SUSPENDED`/`CHECKED_OUT`/`DISCARDED`), `label?` (por ejemplo "Señora vestido rojo"), `customerName?`, `discount` (descuento global en centavos) | El carrito es **de la sucursal**, no de una caja: el vendedor lo arma sin elegir caja, y cualquiera con `pos.sell` lo cobra desde una caja abierta; la venta queda en esa caja (decisión 2026-10-05). **Máximo 5 carritos `SUSPENDED` por vendedor en la sucursal**, más su carrito activo. Se guardan en el servidor para que las reservas sean consistentes y sobrevivan a una recarga. |
 | `CartItem` | `cartId`, `variantId`, `sourceRackId`, `quantity`, `unitPrice`, `discount` | Cada ítem reserva stock del rack de origen. |
-| `Sale` | `folio`, `branchId`, `cashRegisterId`, `cashSessionId`, `sellerId`, `cartId`, `customerName?`, `subtotal`, `globalDiscount`, `discountTotal`, `taxRateBp` y `pricesIncludeTax` (copia de la configuración de la sucursal al vender), `taxTotal`, `total`, `status` (`COMPLETED`/`CANCELLED`), `cancelledAt?`, `cancelledById?`, `cancelReason?` | **Cancelación en el MVP** (decisión 2026-10-01): solo total, con `pos.sale.cancel` y motivo obligatorio, y solo mientras la `CashSession` de la venta esté `OPEN`. El stock regresa a staging (`SALE_CANCEL`). El efectivo de una venta cancelada no cuenta en el esperado del corte. |
+| `Sale` | `folio`, `branchId`, `cashRegisterId`, `cashSessionId`, `sellerId` (quien armó el carrito), `cashierId` (quien cobró, decisión 2026-10-05), `cartId`, `customerName?`, `subtotal`, `globalDiscount`, `discountTotal`, `taxRateBp` y `pricesIncludeTax` (copia de la configuración de la sucursal al vender), `taxTotal`, `total`, `status` (`COMPLETED`/`CANCELLED`), `cancelledAt?`, `cancelledById?`, `cancelReason?` | **Cancelación en el MVP** (decisión 2026-10-01): solo total, con `pos.sale.cancel` y motivo obligatorio, y solo mientras la `CashSession` de la venta esté `OPEN`. El stock regresa a staging (`SALE_CANCEL`). El efectivo de una venta cancelada no cuenta en el esperado del corte. |
 | `SaleItem` | `saleId`, `variantId`, `sourceRackId`, `skuSnapshot`, `nameSnapshot`, `variantLabelSnapshot`, `unitPrice`, `quantity`, `discount`, `lineTotal` | Los snapshots mantienen el ticket histórico intacto aunque el producto cambie después. |
 | `Payment` | `saleId`, `method` (`CASH`/`CARD`/`TRANSFER`), `amount`, `received?`, `change?`, `reference?` | Admite pago mixto (varios `Payment`). La suma de `amount` debe ser igual a `total`. |
 
@@ -462,7 +464,7 @@ stateDiagram-v2
 
 - Un carrito suspendido **mantiene sus reservas**.
 - Un carrito descartado libera sus reservas (por defecto regresan al rack de origen).
-- Al cerrar la caja no puede haber carritos con reservas. El sistema pide resolverlos antes del corte.
+- Al cerrar la caja no puede haber carritos con reservas. Como los carritos son de la sucursal, esto aplica al cerrar la **última** caja abierta: el sistema pide resolverlos antes del corte, y quien cierra puede regresarlos todos a su ubicación o a staging (decisión 2026-10-05).
 
 **Carga masiva sin ubicación:** si una fila de la carga masiva trae existencia pero no ubicación, el stock entra a **staging** (rack `STG-01-01`) para ubicarse después.
 
@@ -884,13 +886,13 @@ sequenceDiagram
 - **Caja:**
   - `POST /cash-sessions/open` con `{cashRegisterId, openingAmount}`;
   - `GET /cash-sessions/current`;
-  - `POST /cash-sessions/:id/close` con `{countedAmount}` → calcula el esperado (fondo + efectivo de ventas) y la diferencia. No se puede cerrar si hay carritos con reservas.
+  - `POST /cash-sessions/:id/close` con `{countedAmount}` → calcula el esperado (fondo + efectivo de ventas) y la diferencia. No se puede cerrar la última caja abierta de la sucursal si hay carritos con reservas.
 - **Carritos:**
-  - crear, listar los de la sesión, obtener;
-  - `suspend` (máximo 5 suspendidos) y `resume`;
+  - crear (requiere al menos una caja abierta en la sucursal), listar los de la sucursal, obtener;
+  - `suspend` (máximo 5 suspendidos por vendedor) y `resume`;
   - `discard` con la acción para los ítems (regresar o staging);
   - `items` (agregar `{variantId, sourceRackId, qty}` → reserva; modificar cantidad; quitar con acción).
-- **Venta:** `POST /carts/:id/checkout` con `{payments:[...], customerName?}` → transacción única:
+- **Venta:** `POST /carts/:id/checkout` con `{cashSessionId, payments:[...], customerName?}` (la caja abierta desde la que se cobra) → transacción única:
   1. valida las reservas;
   2. genera el folio;
   3. crea `Sale`, `SaleItem` y `Payment`;
@@ -899,10 +901,22 @@ sequenceDiagram
 - `GET /sales/:id` (detalle) y `GET /sales/:id/ticket` (datos del ticket, para reimpresión).
 - Descuento por partida o global, solo con `pos.discount`. Se guarda como monto en centavos; la UI puede capturar un porcentaje y convertirlo.
 - **QR de promoción escaneado** (decisión 2026-10-03): una lectura `promo` muestra un aviso con el código, y con la descripción (`promoQrCaption`) si coincide con `promoQrText` de la sucursal. Con `pos.discount`, ofrece "Aplicar descuento", que abre el descuento global para capturarlo a mano. El código no se valida.
+- **Decisiones de operación** (2026-10-05):
+  - "vendedor arma, caja cobra": el vendedor toca **"Atender"** y arma el carrito sin elegir caja (basta con que haya una caja abierta en la sucursal); cualquiera con `pos.sell` (el cajero o el mismo vendedor) lo cobra desde un dispositivo en una caja abierta;
+  - la venta y su dinero se registran en la **caja que cobra**, así los cortes cuadran aunque el carrito lo haya armado alguien más;
+  - la venta guarda `sellerId` (quien armó) y `cashierId` (quien cobró); el ticket muestra "Le atendió" y "Cajero";
+  - hasta 5 carritos suspendidos **por vendedor** en la sucursal, más su carrito activo;
+  - el IVA se calcula una sola vez sobre el total, después de descuentos (`computeSaleTotals` en `shared`);
+  - el ticket se imprime automáticamente al cobrar, y cada dispositivo puede desactivarlo para ver la vista previa;
+  - el corte es **ciego**: primero se captura el efectivo contado y después se muestran el esperado y la diferencia;
+  - el ticket lleva los datos actuales de la sucursal, así que el vendedor imprime sin `settings.branch`;
+  - cada carrito abierto tiene un **número corto** ("Carrito #12") que se ve en el celular del vendedor; en caja se busca por ese número;
+  - **verificación en caja** (opcional pero visible): el cajero escanea las piezas y cada lectura palomea una partida; una pieza que no está en el carrito muestra un aviso; se puede cobrar sin verificar todo, con confirmación, y queda en el audit.
 - **Cancelación:** `POST /sales/:id/cancel` con `{reason}` y `pos.sale.cancel`. Es solo total y solo si la `CashSession` de la venta sigue `OPEN`. En una transacción: el stock de cada partida entra a staging (`SALE_CANCEL`), la venta queda `CANCELLED` y se registra en `AuditLog`. El esperado del corte excluye las ventas canceladas.
 
 **UI**
-- **Abrir caja:** elegir la caja (entre las de la sucursal), indicar el fondo inicial y confirmar.
+- **Atender:** abre la pantalla de venta sin elegir caja.
+- **Caja (para cobrar):** abrir una caja (elegirla e indicar el fondo inicial) o "Cobrar en esta caja" si ya está abierta; el dispositivo la recuerda.
 - **Pantalla de venta (mobile-first):**
   - `ScanInput` arriba;
   - resultado con imagen, nombre, **selector de talla/color con existencias** y la ubicación de cada una;
@@ -911,10 +925,10 @@ sequenceDiagram
   - carrito con partidas, la ubicación de origen de cada una y un total fijo visible.
 - **Barra de carritos:** chips con los carritos activo y suspendidos (hasta 5) y su etiqueta o nombre del cliente; cambio rápido entre ellos; "Nuevo carrito"; aviso al llegar al límite.
 - **Quitar o descartar:** hoja inferior con "Regresar a su ubicación (A-01-03)" o "Enviar a staging".
-- **Cobro:** métodos de pago (con mixto), teclado numérico para el efectivo recibido, cálculo del cambio y confirmación.
+- **Cobro:** buscar el carrito por su número; verificación por escaneo ("2 de 3 verificadas"); métodos de pago (con mixto), teclado numérico para el efectivo recibido, cálculo del cambio y confirmación.
 - **Ticket:** vista previa, impresión automática o manual y reimpresión desde el historial de la sesión.
 - **Cancelar venta:** desde el historial de la sesión abierta, con confirmación y motivo obligatorio.
-- **Cerrar caja (corte):** resumen por método de pago, efectivo esperado contra contado, diferencia e impresión del corte.
+- **Cerrar caja (corte ciego):** captura del efectivo contado; después, resumen por método de pago, efectivo esperado contra contado, diferencia e impresión del corte. Si es la última caja abierta y quedan carritos con reservas, se listan con "Regresar todo a su ubicación" o "Enviar todo a staging".
 
 **Criterios de aceptación**
 - No se puede vender sin una caja abierta.
