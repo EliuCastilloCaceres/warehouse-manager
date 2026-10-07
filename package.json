@@ -10,11 +10,14 @@
     "dev": "pnpm --filter @warehouse-manager/shared build && pnpm --parallel --filter @warehouse-manager/shared --filter @warehouse-manager/api --filter @warehouse-manager/web dev",
     "build": "pnpm -r build",
     "lint": "eslint .",
-    "typecheck": "tsc -b",
+    "typecheck": "pnpm --filter @warehouse-manager/api db:generate && tsc -b",
     "test": "pnpm -r test",
     "format": "prettier --write .",
     "dev:db": "docker compose -f infra/docker-compose.dev.yml --env-file .env up -d",
     "dev:certs": "node infra/scripts/dev-certs.mjs",
+    "db:migrate": "pnpm --filter @warehouse-manager/api db:migrate",
+    "db:seed": "pnpm --filter @warehouse-manager/shared build && pnpm --filter @warehouse-manager/api db:seed",
+    "seed:demo": "pnpm --filter @warehouse-manager/shared build && pnpm --filter @warehouse-manager/api db:seed:demo",
     "prepare": "husky"
   },
   "lint-staged": {

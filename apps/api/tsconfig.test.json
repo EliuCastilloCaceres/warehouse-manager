@@ -1,16 +1,18 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./tsconfig.build.json",
   "compilerOptions": {
     "composite": false,
     "noEmit": true,
+    "rootDir": ".",
     "module": "CommonJS",
     "moduleResolution": "Node10",
     "ignoreDeprecations": "6.0",
     "types": ["jest", "node"],
     "paths": {
       "@warehouse-manager/shared": ["../../packages/shared/src/index.ts"]
-    }
+    },
+    "allowImportingTsExtensions": true
   },
-  "include": ["src"],
+  "include": ["src", "prisma", "test"],
   "exclude": []
 }

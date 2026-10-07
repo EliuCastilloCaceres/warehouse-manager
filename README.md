@@ -30,7 +30,7 @@ Revisa los valores de `.env`; cada variable está comentada en `.env.example`.
 ## Desarrollo
 
 ```bash
-pnpm dev:db     # levanta PostgreSQL 16 en Docker (puerto 5432)
+pnpm dev:db     # levanta PostgreSQL 16 en Docker: desarrollo (5432) y pruebas (5433)
 pnpm dev        # API en :3000 y web en :5173
 ```
 
@@ -40,7 +40,32 @@ pnpm dev        # API en :3000 y web en :5173
 
 La web llama siempre a rutas relativas (`/api/v1/...`) y Vite las reenvía a `API_PROXY_TARGET`. Si en tu equipo otro servicio ya usa el puerto 3000 en `localhost` (por ejemplo, un contenedor de otro proyecto), pon `API_PROXY_TARGET=http://127.0.0.1:3000` o cambia `PORT`.
 
-Para detener la base de datos: `docker compose -f infra/docker-compose.dev.yml down` (los datos quedan en el volumen `pgdata`).
+Para detener la base de datos: `docker compose -f infra/docker-compose.dev.yml down` (los datos de desarrollo quedan en el volumen `pgdata`; la BD de pruebas vive en memoria y se borra).
+
+## Base de datos
+
+El modelo está en `apps/api/prisma/schema.prisma` (diagramas en [`docs/erd.md`](docs/erd.md)). Desde una BD vacía:
+
+```bash
+pnpm dev:db       # si no está levantada
+pnpm db:migrate   # aplica las migraciones (init + constraints)
+pnpm db:seed      # permisos, roles, sucursales S1/S2, cajas, staging, usuarios owner y admin
+pnpm seed:demo    # opcional: zonas, racks y un catálogo de ejemplo (sin stock)
+```
+
+- **Contraseñas iniciales:** antes del primer `pnpm db:seed`, cambia `OWNER_INITIAL_PASSWORD` y `ADMIN_INITIAL_PASSWORD` en `.env` (mínimo 8 caracteres). Los usuarios `owner` (Propietario) y `admin` (Administrador) deberán cambiarlas al entrar. El seed nunca restablece una contraseña que ya existe.
+- Los dos seeds se pueden correr las veces que quieras: solo crean lo que falta y no sobrescriben lo que hayas editado (el seed base sí sincroniza los permisos y roles del sistema).
+- **Cambios al modelo:** edita `schema.prisma` y corre `pnpm db:migrate --name <descripcion>`. Después regenera el cliente con `pnpm --filter @warehouse-manager/api db:generate` (Prisma 7 ya no lo hace solo al migrar; `build`, `typecheck` y `test` lo regeneran por su cuenta).
+- **Empezar de cero en desarrollo** (borra todos los datos de `warehouse_dev`): `pnpm --filter @warehouse-manager/api exec prisma migrate reset`, y luego `pnpm db:seed` (y `pnpm seed:demo` si lo quieres).
+
+## Pruebas
+
+`pnpm test` corre los tests de los tres paquetes. Los de integración de la API usan la BD de pruebas (`TEST_DATABASE_URL`, puerto 5433), así que **requieren `pnpm dev:db`**. Antes de correr, borran esa BD y le aplican las migraciones; por seguridad se niegan a correr si `TEST_DATABASE_URL` no termina en `_test` o si es igual a `DATABASE_URL`.
+
+```bash
+pnpm --filter @warehouse-manager/api test:unit   # sin BD
+pnpm --filter @warehouse-manager/api test:int    # solo integración
+```
 
 ## HTTPS en desarrollo (para usar la cámara del celular)
 

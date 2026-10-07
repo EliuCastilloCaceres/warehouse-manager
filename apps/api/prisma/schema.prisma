@@ -1,0 +1,675 @@
+// Modelo de datos del MVP (spec F1 §4). Las garantías que Prisma no expresa
+// (CHECK, índices parciales, NULLS NOT DISTINCT, kardex inmutable y la vista
+// v_rack_occupancy) están en la migración `constraints`.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserType {
+  STAFF
+
+  @@map("user_type")
+}
+
+enum ProductType {
+  SIMPLE
+  VARIABLE
+
+  @@map("product_type")
+}
+
+enum InventoryMovementType {
+  INITIAL_LOAD
+  PUTAWAY
+  RELOCATE
+  PICK
+  RETURN_TO_RACK
+  TO_STAGING
+  SALE
+  SALE_CANCEL
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+
+  @@map("inventory_movement_type")
+}
+
+enum InventoryReferenceType {
+  CART
+  SALE
+
+  @@map("inventory_reference_type")
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+
+  @@map("cash_session_status")
+}
+
+enum CartStatus {
+  ACTIVE
+  SUSPENDED
+  CHECKED_OUT
+  DISCARDED
+
+  @@map("cart_status")
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELLED
+
+  @@map("sale_status")
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+
+  @@map("payment_method")
+}
+
+enum BranchCounterKey {
+  SALE_FOLIO
+
+  @@map("branch_counter_key")
+}
+
+enum AdjustmentReason {
+  PHYSICAL_COUNT
+  DAMAGE
+  LOSS
+  FOUND
+  DATA_ENTRY_ERROR
+  OTHER
+
+  @@map("adjustment_reason")
+}
+
+// ─── Organización ────────────────────────────────────────────────────────────
+
+model Branch {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                String   @unique // "S1"; prefijo de folios
+  name                String
+  legalName           String?  @map("legal_name")
+  taxId               String?  @map("tax_id") // RFC
+  address             String?
+  phone               String?
+  email               String?
+  imageUrl            String?  @map("image_url")
+  logoUrl             String?  @map("logo_url")
+  ticketHeader        String?  @map("ticket_header")
+  ticketFooterMessage String?  @map("ticket_footer_message")
+  promoQrText         String?  @map("promo_qr_text") // contenido del QR; la app lo dibuja (F5)
+  promoQrCaption      String?  @map("promo_qr_caption") // descripción impresa bajo el QR
+  timezone            String   @default("America/Mexico_City")
+  currency            String   @default("MXN") @db.Char(3)
+  taxRateBp           Int      @default(1600) @map("tax_rate_bp")
+  pricesIncludeTax    Boolean  @default(true) @map("prices_include_tax")
+  lowStockThreshold   Int      @default(2) @map("low_stock_threshold")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  counters      BranchCounter[]
+  cashRegisters CashRegister[]
+  userBranches  UserBranch[]
+  warehouses    Warehouse[]
+  carts         Cart[]
+  sales         Sale[]
+
+  @@map("branch")
+}
+
+model BranchCounter {
+  branchId  String           @map("branch_id") @db.Uuid
+  key       BranchCounterKey
+  value     Int              @default(0)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@id([branchId, key])
+  @@map("branch_counter")
+}
+
+model CashRegister {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  code      String // "C1"
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  branch   Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  sessions CashSession[]
+  sales    Sale[]
+
+  @@unique([branchId, code])
+  @@map("cash_register")
+}
+
+model CashSession {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cashRegisterId String            @map("cash_register_id") @db.Uuid
+  openedById     String            @map("opened_by_id") @db.Uuid
+  openedAt       DateTime          @default(now()) @map("opened_at") @db.Timestamptz(3)
+  openingAmount  Int               @map("opening_amount")
+  closedById     String?           @map("closed_by_id") @db.Uuid
+  closedAt       DateTime?         @map("closed_at") @db.Timestamptz(3)
+  expectedAmount Int?              @map("expected_amount")
+  countedAmount  Int?              @map("counted_amount")
+  difference     Int? // counted - expected; puede ser negativa
+  status         CashSessionStatus @default(OPEN)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict)
+  openedBy     User         @relation("CashSessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  closedBy     User?        @relation("CashSessionClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+  sales        Sale[]
+
+  @@index([cashRegisterId, openedAt])
+  @@map("cash_session")
+}
+
+// ─── Seguridad ───────────────────────────────────────────────────────────────
+
+model User {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username           String    @unique // minúsculas (CHECK)
+  passwordHash       String    @map("password_hash")
+  fullName           String    @map("full_name")
+  email              String?
+  phone              String?
+  roleId             String    @map("role_id") @db.Uuid
+  type               UserType  @default(STAFF)
+  isActive           Boolean   @default(true) @map("is_active")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  role               Role                @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  permissions        UserPermission[]
+  branches           UserBranch[]
+  refreshTokens      RefreshToken[]
+  auditLogs          AuditLog[]
+  openedCashSessions CashSession[]       @relation("CashSessionOpenedBy")
+  closedCashSessions CashSession[]       @relation("CashSessionClosedBy")
+  inventoryMovements InventoryMovement[]
+  carts              Cart[]
+  salesAsSeller      Sale[]              @relation("SaleSeller")
+  salesAsCashier     Sale[]              @relation("SaleCashier")
+  cancelledSales     Sale[]              @relation("SaleCancelledBy")
+
+  @@index([roleId])
+  @@map("app_user")
+}
+
+model Role {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String   @unique // OWNER | ADMIN | MANAGER | SELLER | WAREHOUSE_CLERK
+  name      String
+  isSystem  Boolean  @default(false) @map("is_system")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("role")
+}
+
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique // "products.manage"
+  module      String
+  description String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permission")
+}
+
+model UserPermission {
+  userId       String   @map("user_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permission")
+}
+
+model UserBranch {
+  userId    String   @map("user_id") @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@id([userId, branchId])
+  @@index([branchId])
+  @@map("user_branch")
+}
+
+model RefreshToken {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  familyId     String    @map("family_id") @db.Uuid
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedById String?   @unique @map("replaced_by_id") @db.Uuid
+  userAgent    String?   @map("user_agent")
+  ip           String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  replacedBy RefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id], onDelete: Restrict)
+  replaces   RefreshToken? @relation("RefreshTokenRotation")
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_token")
+}
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid // null = sistema/seed
+  action    String // "user.create"
+  entity    String // "User"
+  entityId  String?  @map("entity_id")
+  payload   Json?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("audit_log")
+}
+
+// ─── Catálogo ────────────────────────────────────────────────────────────────
+
+model Category {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  parentId  String?  @map("parent_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@unique([parentId, name]) // NULLS NOT DISTINCT en la migración constraints
+  @@map("category")
+}
+
+model Brand {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products Product[]
+
+  @@map("brand")
+}
+
+model Product {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku         String      @unique
+  name        String
+  description String?
+  categoryId  String?     @map("category_id") @db.Uuid
+  brandId     String?     @map("brand_id") @db.Uuid
+  type        ProductType
+  price       Int
+  cost        Int?
+  tags        String[]    @default([])
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category Category?        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brand    Brand?           @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  variants ProductVariant[]
+  images   ProductImage[]
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([name])
+  @@map("product")
+}
+
+model ProductVariant {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
+  sku           String   @unique
+  barcode       String?  @unique
+  size          String?
+  color         String?
+  material      String?
+  priceOverride Int?     @map("price_override")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  images             ProductImage[]
+  stockLocations     StockLocation[]
+  inventoryMovements InventoryMovement[]
+  cartItems          CartItem[]
+  saleItems          SaleItem[]
+
+  @@unique([productId, size, color, material]) // NULLS NOT DISTINCT en la migración constraints
+  @@map("product_variant")
+}
+
+model ProductImage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  variantId String?  @map("variant_id") @db.Uuid
+  url       String
+  thumbUrl  String   @map("thumb_url")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([productId, sortOrder])
+  @@index([variantId])
+  @@map("product_image")
+}
+
+// ─── Almacén ─────────────────────────────────────────────────────────────────
+
+model Warehouse {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  code      String
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  zones  Zone[]
+  racks  Rack[]
+
+  @@unique([branchId, code])
+  @@map("warehouse")
+}
+
+model Zone {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  code        String // "A", "AB" o "STG"
+  name        String
+  color       String? // "#RRGGBB"
+  isStaging   Boolean  @default(false) @map("is_staging")
+  priority    Int      @default(0)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  warehouse  Warehouse   @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  containers Container[]
+
+  @@unique([warehouseId, code])
+  @@map("zone")
+}
+
+model Container {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  zoneId    String   @map("zone_id") @db.Uuid
+  code      String // "01"–"99"
+  name      String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  zone  Zone   @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  racks Rack[]
+
+  @@unique([zoneId, code])
+  @@map("container")
+}
+
+model Rack {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  containerId   String   @map("container_id") @db.Uuid
+  warehouseId   String   @map("warehouse_id") @db.Uuid // desnormalizado
+  code          String // "01"–"99"
+  locationCode  String   @map("location_code") // "A-01-03"
+  capacityUnits Int      @map("capacity_units")
+  labelColor    String?  @map("label_color") // "#RRGGBB"
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  container      Container           @relation(fields: [containerId], references: [id], onDelete: Restrict)
+  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  stockLocations StockLocation[]
+  movementsFrom  InventoryMovement[] @relation("MovementFromRack")
+  movementsTo    InventoryMovement[] @relation("MovementToRack")
+  cartItems      CartItem[]
+  saleItems      SaleItem[]
+
+  @@unique([containerId, code])
+  @@unique([warehouseId, locationCode])
+  @@map("rack")
+}
+
+model StockLocation {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId   String   @map("variant_id") @db.Uuid
+  rackId      String   @map("rack_id") @db.Uuid
+  quantity    Int      @default(0)
+  reservedQty Int      @default(0) @map("reserved_qty")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  rack    Rack           @relation(fields: [rackId], references: [id], onDelete: Restrict)
+
+  @@unique([variantId, rackId])
+  @@index([rackId])
+  @@map("stock_location")
+}
+
+model InventoryMovement {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variantId          String                  @map("variant_id") @db.Uuid
+  fromRackId         String?                 @map("from_rack_id") @db.Uuid
+  toRackId           String?                 @map("to_rack_id") @db.Uuid
+  quantity           Int
+  type               InventoryMovementType
+  userId             String                  @map("user_id") @db.Uuid
+  referenceType      InventoryReferenceType? @map("reference_type")
+  referenceId        String?                 @map("reference_id") @db.Uuid
+  note               String?
+  adjustmentReason   AdjustmentReason?       @map("adjustment_reason") // solo en ADJUSTMENT_IN/OUT (F7)
+  capacityOverridden Boolean                 @default(false) @map("capacity_overridden")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  fromRack Rack?          @relation("MovementFromRack", fields: [fromRackId], references: [id], onDelete: Restrict)
+  toRack   Rack?          @relation("MovementToRack", fields: [toRackId], references: [id], onDelete: Restrict)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([variantId, createdAt])
+  @@index([fromRackId])
+  @@index([toRackId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([referenceType, referenceId])
+  @@map("inventory_movement")
+}
+
+// ─── Punto de venta ──────────────────────────────────────────────────────────
+
+model Cart {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId     String     @map("branch_id") @db.Uuid // el carrito es de la sucursal, no de una caja (F8)
+  userId       String     @map("user_id") @db.Uuid
+  number       Int // número corto (1–999), único entre los carritos abiertos de la sucursal (F8)
+  status       CartStatus @default(ACTIVE)
+  label        String?
+  customerName String?    @map("customer_name")
+  discount     Int        @default(0) // descuento global, centavos
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  branch Branch     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items  CartItem[]
+  sale   Sale?
+
+  @@index([branchId, status])
+  @@map("cart")
+}
+
+model CartItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cartId       String   @map("cart_id") @db.Uuid
+  variantId    String   @map("variant_id") @db.Uuid
+  sourceRackId String   @map("source_rack_id") @db.Uuid
+  quantity     Int
+  unitPrice    Int      @map("unit_price")
+  discount     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  cart       Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  sourceRack Rack           @relation(fields: [sourceRackId], references: [id], onDelete: Restrict)
+
+  @@index([cartId])
+  @@index([variantId, sourceRackId])
+  @@map("cart_item")
+}
+
+model Sale {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folio            String     @unique // "S1-000123"
+  branchId         String     @map("branch_id") @db.Uuid
+  cashRegisterId   String     @map("cash_register_id") @db.Uuid
+  cashSessionId    String     @map("cash_session_id") @db.Uuid
+  sellerId         String     @map("seller_id") @db.Uuid // quien armó el carrito
+  cashierId        String     @map("cashier_id") @db.Uuid // quien cobró (F8)
+  cartId           String     @unique @map("cart_id") @db.Uuid
+  customerName     String?    @map("customer_name")
+  subtotal         Int // Σ unitPrice × quantity
+  globalDiscount   Int        @default(0) @map("global_discount")
+  discountTotal    Int        @map("discount_total") // Σ descuentos de partida + globalDiscount
+  taxRateBp        Int        @map("tax_rate_bp") // copia de Branch al vender
+  pricesIncludeTax Boolean    @map("prices_include_tax") // copia de Branch al vender
+  taxTotal         Int        @map("tax_total")
+  total            Int
+  status           SaleStatus @default(COMPLETED)
+  cancelledAt      DateTime?  @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById    String?    @map("cancelled_by_id") @db.Uuid
+  cancelReason     String?    @map("cancel_reason")
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict)
+  cashSession  CashSession  @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
+  seller       User         @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  cashier      User         @relation("SaleCashier", fields: [cashierId], references: [id], onDelete: Restrict)
+  cancelledBy  User?        @relation("SaleCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cart         Cart         @relation(fields: [cartId], references: [id], onDelete: Restrict)
+  items        SaleItem[]
+  payments     Payment[]
+
+  @@index([branchId, createdAt])
+  @@index([cashSessionId])
+  @@index([sellerId, createdAt])
+  @@index([cashierId, createdAt]) // reportes: "vendedor o cajero" (F9)
+  @@map("sale")
+}
+
+model SaleItem {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  saleId               String   @map("sale_id") @db.Uuid
+  variantId            String   @map("variant_id") @db.Uuid
+  sourceRackId         String   @map("source_rack_id") @db.Uuid
+  skuSnapshot          String   @map("sku_snapshot")
+  nameSnapshot         String   @map("name_snapshot")
+  variantLabelSnapshot String?  @map("variant_label_snapshot")
+  unitPrice            Int      @map("unit_price")
+  quantity             Int
+  discount             Int      @default(0)
+  lineTotal            Int      @map("line_total") // unitPrice × quantity − discount
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sale       Sale           @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  sourceRack Rack           @relation(fields: [sourceRackId], references: [id], onDelete: Restrict)
+
+  @@index([saleId])
+  @@index([variantId])
+  @@map("sale_item")
+}
+
+model Payment {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  saleId    String        @map("sale_id") @db.Uuid
+  method    PaymentMethod
+  amount    Int
+  received  Int? // solo CASH
+  change    Int? // solo CASH
+  reference String?
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+
+  @@index([saleId])
+  @@map("payment")
+}

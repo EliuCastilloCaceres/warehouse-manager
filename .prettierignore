@@ -6,3 +6,4 @@ infra/certs
 docs
 AGENTS.md
 CLAUDE.md
+apps/api/src/generated

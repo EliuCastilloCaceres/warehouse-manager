@@ -1,7 +1,7 @@
 ---
 id: fase-01
 titulo: Modelo de datos y contratos compartidos
-estado: LISTA
+estado: EN_PROGRESO
 depende_de: [fase-00]
 autoriza_codigo_en:
   - "package.json"
@@ -38,7 +38,7 @@ fuera_de_alcance:
   - "Endpoints, pantallas y cambios en apps/web"
   - "Generadores de ERD (decisión 2026-10-01: mermaid a mano)"
 tests_requeridos_total: 26
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 26
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en packages/shared y en apps/api/prisma/seed/** + apps/api/src/core/password.ts"
 definition_of_done: pendiente
 bloqueado_por: []
@@ -945,46 +945,46 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 
 ## 11. TODOs (en orden, verificables)
 
-- [ ] **1. Toolchain Prisma (R1, R4).**
+- [x] **1. Toolchain Prisma (R1, R4).**
   - Instalar las dependencias de §3, crear `prisma.config.ts`, un `schema.prisma` con solo `generator` + `datasource`, y `src/core/prisma-client.ts`. Agregar los scripts `postinstall`/`db:generate` y los ignores del cliente generado.
   - *Verificable:* `pnpm install` regenera el cliente; `pnpm typecheck` OK; un import de `createPrismaClient` funciona con `tsx` y dentro de un test de Jest (el test provisional se elimina en el TODO 9, cuando T14 ya cubre el import).
-- [ ] **2. BD de pruebas e infraestructura de tests.**
+- [x] **2. BD de pruebas e infraestructura de tests.**
   - Agregar `postgres-test` al compose y las variables de §8 a `.env.example`. Configurar los projects de Jest, el `globalSetup` con guardas y `test/integration/helpers/db.ts` (`truncateAll`, cliente de test).
   - *Verificable:* `pnpm dev:db` deja ambos servicios `healthy`; el `globalSetup` aborta con una URL que no termina en `_test`.
-- [ ] **3. `shared`: common, enums y permisos.**
+- [x] **3. `shared`: common, enums y permisos.**
   - Crear `common.ts`, `enums.ts`, `permissions.ts` y el test **T10**.
   - *Verificable:* T10 en verde.
-- [ ] **4. `shared`: dinero y SKU.**
+- [x] **4. `shared`: dinero y SKU.**
   - Crear `money.ts`, `sku.ts` y los tests **T1–T4**.
   - *Verificable:* T1–T4 en verde.
-- [ ] **5. `shared`: ubicación y escaneo.**
+- [x] **5. `shared`: ubicación y escaneo.**
   - Crear `locationCode.ts`, `scanClassifier.ts` y los tests **T5–T7** y **T26**.
   - *Verificable:* T5–T7 y T26 en verde.
-- [ ] **6. `shared`: errores y paginación.**
+- [x] **6. `shared`: errores y paginación.**
   - Crear `errors.ts`, `pagination.ts` y los tests **T8–T9**.
   - *Verificable:* T8–T9 en verde.
-- [ ] **7. Schema completo y migración `init`.**
+- [x] **7. Schema completo y migración `init`.**
   - Escribir `schema.prisma` según §4 y ejecutar `pnpm db:migrate --name init` sobre la BD de desarrollo.
   - *Verificable:* la migración se genera y se aplica sin errores.
-- [ ] **8. Migración `constraints`.**
+- [x] **8. Migración `constraints`.**
   - Crear la migración con `--create-only` y escribir el SQL de §5. Agregar los tests **T16–T20**.
   - *Verificable:* T16–T20 en verde.
-- [ ] **9. DTOs y paridad.**
+- [x] **9. DTOs y paridad.**
   - Crear `dto/*`, las fixtures y el test **T11**. Crear `test/parity/prismaSchema.ts` y los tests **T14–T15**.
   - *Verificable:* T11, T14 y T15 en verde.
-- [ ] **10. Contraseñas.**
+- [x] **10. Contraseñas.**
   - Crear `src/core/password.ts` y el test **T12**.
   - *Verificable:* T12 en verde.
-- [ ] **11. Seed base.**
+- [x] **11. Seed base.**
   - Crear `prisma/seed/env.ts`, `prisma/seed/base.ts` y `prisma/seed.ts`, junto con los tests **T13** y **T21–T23**.
   - *Verificable:* T13 y T21–T23 en verde, y `pnpm db:seed` corre dos veces sobre la BD de desarrollo sin duplicar.
-- [ ] **12. Seed de demo.**
+- [x] **12. Seed de demo.**
   - Crear `prisma/seed/demo.ts` y `prisma/seed-demo.ts`, junto con los tests **T24–T25**.
   - *Verificable:* T24–T25 en verde.
-- [ ] **13. Scripts raíz y README.**
+- [x] **13. Scripts raíz y README.**
   - Agregar `db:migrate`, `db:seed` y `seed:demo` a la raíz. En el README: migrar, sembrar, cambiar `OWNER_INITIAL_PASSWORD` y `ADMIN_INITIAL_PASSWORD`, aclarar que `pnpm test` requiere `pnpm dev:db` y explicar cómo resetear la BD de desarrollo.
   - *Verificable:* el usuario sigue el README desde una BD vacía.
-- [ ] **14. ERD.**
+- [x] **14. ERD.**
   - Crear `docs/erd.md` con los diagramas mermaid de organización/seguridad, catálogo/almacén y POS, con todos los campos de §4.
   - *Verificable:* revisión modelo por modelo contra `schema.prisma` (checklist en §14).
 - [ ] **15. Cierre.**
@@ -1047,6 +1047,23 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 
 *(Se completa al cerrar la fase: salidas de comandos, cobertura y checklist del ERD, con fecha y responsable.)*
 
+**Avance 2026-10-07 (agente, Windows 10 + Node 24.18.1 + pnpm 12.9.1 + Docker 29.8.1, Prisma 7.10.0):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` (desde limpio, con `pnpm dev:db`) | Los cuatro con código 0 (CA6). |
+| Tests | 26/26 requeridos en verde. `shared`: 187 casos (T1–T11, T26). `api`: 110 casos (T12–T25) en 13 suites, `unit` + `integration`. Sin `skip`/`only`/`todo`. Un caso adicional en `seed-base.int.test.ts` cubre la actualización de módulo/descripción de permisos y del nombre de un rol. |
+| Cobertura | `packages/shared`: 100 % líneas y 98.18 % ramas. `apps/api/prisma/seed/**` + `src/core/password.ts`: 100 % líneas y 97.95 % ramas (CA7). |
+| `pnpm dev:db` | `postgres` y `postgres-test` en `healthy` (5432 y 5433). |
+| Migraciones (BD de desarrollo) | `20261007074357_init` y `20261007074437_constraints` aplicadas; `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code` → "No difference detected" (R2 no ocurrió) (CA1). |
+| `pnpm db:seed` ×2 (BD de desarrollo) | 1.ª: "Creado (51)", nada actualizado ni borrado. 2.ª: "Creado: nada · Actualizado: nada · Borrado: nada" (CA1). |
+| `pnpm seed:demo` ×2 | 1.ª: "Creado (53)" (3 zonas, 6 contenedores, 24 racks, 2 marcas, 4 productos, 14 variantes). 2.ª: "Creado: nada" (CA5). |
+| Guardas del `globalSetup` | URL sin `_test` → aborta; `TEST_DATABASE_URL = DATABASE_URL` → aborta; BD apagada → "¿Está levantada? Ejecuta \"pnpm dev:db\"…". |
+| Seed sin variables | `OWNER_INITIAL_PASSWORD` de 5 caracteres → mensaje en español que nombra la variable y código 1, sin conectarse (§9.1). |
+| ERD (CA8) | Checklist automatizada modelo por modelo (nombres, orden y nulabilidad de cada campo escalar de `docs/erd.md` contra `schema.prisma`): los 28 modelos coinciden — Branch 22, BranchCounter 5, CashRegister 7, CashSession 13, User 13, Role 6, Permission 6, RolePermission 3, UserPermission 3, UserBranch 4, RefreshToken 10, AuditLog 8, Category 6, Brand 5, Product 13, ProductVariant 11, ProductImage 8, Warehouse 7, Zone 11, Container 7, Rack 10, StockLocation 7, InventoryMovement 13, Cart 10, CartItem 9, Sale 22, SaleItem 12, Payment 8. Pendiente: revisión visual del usuario. |
+
+**Pendiente para cerrar:** que el usuario siga el README desde una BD vacía (TODO 13), revise el ERD (CA8) y confirme el cierre (constitución §4.9).
+
 ---
 
 ## 15. Registro de decisiones
@@ -1077,3 +1094,6 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-05 | `Cart.cashSessionId` se reemplaza por `Cart.branchId`: el vendedor arma el carrito sin elegir caja ("Atender") y la venta se registra en la caja que cobra. El índice parcial queda `cart_one_active_per_user_branch` (`UNIQUE (branch_id, user_id) WHERE status = 'ACTIVE'`). Cambian §4.6, §5.2, T15 (`CartDto`) y T18. | Usuario (chat), durante la revisión de F8; plan §4.1, §4.2 y §4.3 actualizados |
 | 2026-10-05 | `Cart.number` (número corto 1–999, `CHECK cart_number_check`) e índice parcial `cart_number_open_per_branch`: único entre los carritos `ACTIVE`/`SUSPENDED` de la sucursal y reutilizable cuando el carrito se cobra o se descarta. Cambian §4.6, §5.1, §5.2, T15 (`CartDto`), T17 y T18. | Usuario (chat), durante la revisión de F8; plan §4.2 actualizado |
 | 2026-10-06 | Índice `Sale[cashierId, createdAt]` para el reporte de ventas, que muestra a quien no tiene `reports.sales.all_users` las ventas que atendió o cobró. Cambia §4.6; lo cubre T16 (sin diferencias entre BD y schema). | Usuario (chat), al aprobar F9 |
+| 2026-10-07 | R1 ocurrió: el cliente de Prisma 7.10 (`prisma-client`, ESM) usa `import.meta.url` para calcular `__dirname` y no carga en Jest con ts-jest en CJS. Se resuelve con un transformador de ts-jest (`apps/api/test/jest/import-meta-transformer.cjs`) que, solo en los tests, lo reemplaza por `require("node:url").pathToFileURL(__filename).href`. La API, `tsx` y el build siguen en ESM; la decisión de F0 no cambia. | Usuario (chat), opción recomendada por el agente |
+| 2026-10-07 | Prisma 7.10.0 (última estable: la etiqueta `latest` de `prisma` apunta a `8.0.0-rc.20`). En pnpm 12 los scripts de instalación de §3 se permiten con `allowBuilds` (equivalente de `onlyBuiltDependencies`). `@prisma/adapter-pg` trae `pg` y `@types/pg` como dependencias propias, así que no se declaran. | Agente, al implementar (regla de §2 y §3) |
+| 2026-10-07 | Ajustes al implementar: el `tsconfig` de `api` se divide en `tsconfig.build.json` (emite solo `src`) y `tsconfig.tools.json` (typecheck de `prisma/`, `test/` y `prisma.config.ts`), referenciados por `tsconfig.json` (§8). El `globalSetup` reinicia la BD de pruebas con `prisma db execute` (corre fuera del registro de módulos de Jest). Los scripts `test*` de `api` y el `typecheck` raíz corren `prisma generate` antes, porque Prisma 7 ya no regenera el cliente al migrar. `db:seed` y `seed:demo` de la raíz compilan `shared` antes. `prisma/load-env.ts` carga el `.env` de la raíz en las entradas de los seeds. | Agente, al implementar |

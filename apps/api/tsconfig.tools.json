@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tools.tsbuildinfo",
+    "types": ["node", "jest"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "prisma", "test", "prisma.config.ts"],
+  "references": [
+    {
+      "path": "../../packages/shared"
+    }
+  ]
+}
