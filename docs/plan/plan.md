@@ -976,7 +976,10 @@ Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas: las que at
 - Revisión de rendimiento: índices en `sku`, `location_code`, `sale.created_at` y `stock_location(variant_id)`; carga del catálogo y del mapa con datos de volumen realista.
 - Dockerfiles de producción multi-stage (api con `node:lts-alpine`; web con build → Nginx), `docker-compose.yml` de producción y migraciones al arrancar (`prisma migrate deploy`).
 - Nginx: TLS, gzip/brotli, caché de estáticos, `client_max_body_size` para imágenes y Excel, y proxy de `/api` y `/uploads`.
-- Respaldos automáticos (`pg_dump` diario con rotación + carpeta `uploads`) y un **procedimiento de restauración probado**.
+- Respaldos automáticos (`pg_dump` diario con rotación + carpeta `uploads`), copiados a un disco externo o NAS de la tienda, y un **procedimiento de restauración probado** (decisión 2026-10-06).
+- CI en GitHub Actions: lint, typecheck, tests, build y e2e de Playwright en cada PR (decisión 2026-10-06).
+- Primer despliegue en un servidor local de la tienda, con dominio propio y Let's Encrypt por desafío DNS; guía de migración a VPS (decisión 2026-10-06).
+- Antes de comprar el dominio, ensayo del stack completo en **modo local** (mkcert + IP LAN) en la PC de desarrollo (Windows) y en el servidor de la tienda; después se cambia a Let's Encrypt sin reinstalar (decisión 2026-10-06).
 - Documentación:
   - guía de instalación (VPS y servidor local);
   - guía de operación (respaldos, actualización, alta del primer administrador);
@@ -1031,6 +1034,8 @@ Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas: las que at
 | Respaldos | Copia también fuera del servidor (bucket u otro host) | Disco externo o NAS, más copia en la nube opcional. |
 | Actualización | `git pull` + `docker compose build` + `up -d` (o imágenes en un registry) | Igual. |
 
+**Modo local de pruebas (sin dominio, decisión 2026-10-06):** el mismo stack de producción con `TLS_MODE=local` usa un certificado de mkcert para la IP LAN del equipo (opción b) y se instala la CA raíz en cada dispositivo. Sirve para ensayar en la PC de desarrollo y en el servidor de la tienda antes de comprar el dominio; después se cambia a `letsencrypt` (opción a) sin perder datos. Detalle en la spec F10 §3.2.
+
 ### 10.3 Observabilidad mínima
 - Logs JSON de pino con `requestId` y `userId`, con rotación de logs de Docker.
 - Endpoint `/api/v1/health` (API + BD) para monitoreo externo, por ejemplo Uptime Kuma.
@@ -1084,12 +1089,12 @@ Las respuestas pueden ajustar el modelo de datos de la Fase 1, así que conviene
 | 5 | **Devoluciones y cancelaciones** después de la venta: ¿se requieren en el MVP? | Cancelación **total** en el MVP, con `pos.sale.cancel` (Administrador y Gerente) y solo mientras la caja de la venta siga abierta. El stock regresa a staging. Las devoluciones quedan post-MVP (§11). |
 | 6 | **Hardware:** modelo de impresora térmica (58/80 mm, USB/Bluetooth/red), de lector de códigos y de impresora de etiquetas, y tamaño de etiqueta deseado. | Respondida 2026-10-03. Tickets: Epson TM-T20III (80 mm, 72 mm imprimibles). Lector: modelo no identificado, USB por cable y Bluetooth con receptor USB, ambos como teclado (HID). Etiquetas: Ribetec RT-420ME (térmica 4", 203 dpi) para 50×25 mm y 4×6", y hojas A4 o Carta en una impresora normal. Tamaños de §7.2 confirmados. |
 | 7 | **Imágenes por variante:** ¿cada color tiene sus propias fotos? | Opcional por variante; sin fotos propias, la variante usa las del producto. |
-| 8 | **Usuarios concurrentes** y volumen esperado: número de SKUs, de ventas al día y de racks. | **Pendiente.** No bloquea F1; se resuelve antes de F10. |
+| 8 | **Usuarios concurrentes** y volumen esperado: número de SKUs, de ventas al día y de racks. | Respondida 2026-10-06. Volumen pequeño: hasta ~2 000 variantes, ~100 ventas al día por sucursal, ~200 racks y hasta 5 usuarios a la vez. Las pruebas de rendimiento de F10 usan el doble. |
 | 9 | **Umbral de "stock bajo":** ¿global o por producto? ¿Valor por defecto? | Por sucursal (`Branch.lowStockThreshold`), 2 por defecto. |
 | 10 | **Capacidad:** ¿se permite exceder la capacidad de un rack con autorización o se bloquea siempre? | Se permite con `inventory.override_capacity`; el movimiento queda marcado. |
 | 11 | **Código de ubicación:** ¿aprueban el formato `A-01-03` con color como atributo (§5)? | Aprobado. |
 | 12 | **Datos del cliente en la venta:** ¿se captura nombre o teléfono del comprador en el MVP? | Solo nombre opcional. |
-| 13 | **Despliegue:** ¿VPS o servidor local? ¿Tienen dominio propio? | **Pendiente.** No bloquea F1; se resuelve antes de F10. |
+| 13 | **Despliegue:** ¿VPS o servidor local? ¿Tienen dominio propio? | Respondida 2026-10-06. Primero en un servidor local de la tienda; se planea migrar a un VPS en un futuro cercano. Se compra el dominio ya y el certificado es de Let's Encrypt por desafío DNS apuntando a la IP local (§10.2 opción a). Respaldos copiados a un disco externo o NAS. |
 
 ---
 
