@@ -522,6 +522,7 @@ model Sale {
   @@index([branchId, createdAt])
   @@index([cashSessionId])
   @@index([sellerId, createdAt])
+  @@index([cashierId, createdAt])                // reportes: "vendedor o cajero" (F9)
 }
 
 model SaleItem {
@@ -1075,3 +1076,4 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-05 | `Sale.cashierId` (FK `User` "SaleCashier", quien cobró; `sellerId` es quien armó el carrito) e índice único parcial de un carrito `ACTIVE` por usuario. Cambian §4.6, §5.2, T15 (por el campo nuevo de `SaleDto`) y T18. | Usuario (chat), durante la redacción de F8; plan §4.1 y §4.2 actualizados |
 | 2026-10-05 | `Cart.cashSessionId` se reemplaza por `Cart.branchId`: el vendedor arma el carrito sin elegir caja ("Atender") y la venta se registra en la caja que cobra. El índice parcial queda `cart_one_active_per_user_branch` (`UNIQUE (branch_id, user_id) WHERE status = 'ACTIVE'`). Cambian §4.6, §5.2, T15 (`CartDto`) y T18. | Usuario (chat), durante la revisión de F8; plan §4.1, §4.2 y §4.3 actualizados |
 | 2026-10-05 | `Cart.number` (número corto 1–999, `CHECK cart_number_check`) e índice parcial `cart_number_open_per_branch`: único entre los carritos `ACTIVE`/`SUSPENDED` de la sucursal y reutilizable cuando el carrito se cobra o se descarta. Cambian §4.6, §5.1, §5.2, T15 (`CartDto`), T17 y T18. | Usuario (chat), durante la revisión de F8; plan §4.2 actualizado |
+| 2026-10-06 | Índice `Sale[cashierId, createdAt]` para el reporte de ventas, que muestra a quien no tiene `reports.sales.all_users` las ventas que atendió o cobró. Cambia §4.6; lo cubre T16 (sin diferencias entre BD y schema). | Usuario (chat), al aprobar F9 |

@@ -947,15 +947,15 @@ sequenceDiagram
 **API:** `GET /reports/sales?from=&to=&cashRegisterId=&sellerId=&paymentMethod=`. Por defecto `from = to =` hoy, según la zona horaria de la sucursal. Devuelve:
 - totales: número de ventas, unidades, subtotal, descuentos, impuestos, total y ticket promedio;
 - desglose por método de pago, por caja y por vendedor;
-- lista paginada de ventas.
+- lista paginada de ventas (en la spec F9, en un endpoint aparte: `GET /reports/sales/list`).
 
-Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas. El tratamiento de las ventas canceladas en totales y listados se define en la spec F9.
+Sin `reports.sales.all_users`, el usuario solo ve sus propias ventas: las que atendió (`sellerId`) o cobró (`cashierId`), igual que el historial de caja de F8 (decisión 2026-10-06). Las ventas canceladas no cuentan en los totales ni en los desgloses; se muestran aparte y, marcadas, en la lista (decisión 2026-10-06).
 
 **UI:**
 - Filtro de rango de fechas con atajos (Hoy, Ayer, Últimos 7 días, Este mes).
 - Tarjetas de totales y desgloses.
 - Lista de ventas → detalle → reimprimir ticket.
-- Exportar a `.xlsx` (opcional dentro del MVP).
+- Exportar a `.xlsx` (dentro del MVP, decisión 2026-10-06).
 
 **Criterios de aceptación**
 - Los totales del reporte cuadran con la suma de las ventas, incluido el borde del día en la zona horaria de la sucursal (test).
