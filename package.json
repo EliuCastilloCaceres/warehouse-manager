@@ -1,0 +1,40 @@
+{
+  "name": "warehouse-manager",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.9.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @warehouse-manager/shared build && pnpm --parallel --filter @warehouse-manager/shared --filter @warehouse-manager/api --filter @warehouse-manager/web dev",
+    "build": "pnpm -r build",
+    "lint": "eslint .",
+    "typecheck": "tsc -b",
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "dev:db": "docker compose -f infra/docker-compose.dev.yml --env-file .env up -d",
+    "dev:certs": "node infra/scripts/dev-certs.mjs",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,cjs,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,yml,yaml}": "prettier --write"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.1",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.1"
+  }
+}

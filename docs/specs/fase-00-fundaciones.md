@@ -1,7 +1,7 @@
 ---
 id: fase-00
 titulo: Fundaciones
-estado: LISTA
+estado: COMPLETA
 depende_de: []
 autoriza_codigo_en:
   - "package.json"
@@ -35,9 +35,9 @@ fuera_de_alcance:
   - "Dockerfiles de producción, docker-compose.yml de producción, Nginx, respaldos (F10)"
   - "Protección de /api/docs con autenticación (F10)"
 tests_requeridos_total: 10
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 10
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en packages/shared"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -353,37 +353,37 @@ DEV_HTTPS_CERT=infra/certs/dev-cert.pem
 
 ## 11. TODOs (en orden, verificables)
 
-- [ ] **1. Workspace pnpm.**
+- [x] **1. Workspace pnpm.**
   - Crear `package.json` raíz (`private`, `packageManager`, `engines`), `pnpm-workspace.yaml` (`apps/*`, `packages/*`), `.nvmrc`, `.editorconfig`, `.gitignore`, `tsconfig.base.json` y `tsconfig.json` (solution).
   - *Verificable:* `pnpm install` termina sin errores.
-- [ ] **2. Calidad de código.**
+- [x] **2. Calidad de código.**
   - Configurar `eslint.config.js` (flat config: `@eslint/js` + `typescript-eslint` + `react-hooks` + `eslint-config-prettier`), `.prettierrc.json`, `.prettierignore`, husky (`.husky/pre-commit`) y lint-staged.
   - *Verificable:* `pnpm lint` pasa en limpio y un commit de prueba dispara lint-staged.
-- [ ] **3. `packages/shared`.**
+- [x] **3. `packages/shared`.**
   - Crear el paquete (`package.json` con `exports` a `dist`, `tsconfig.json` compuesto), `src/health.ts`, `src/index.ts`, `jest.config.cjs` y los tests **T1–T2**.
   - *Verificable:* `pnpm --filter @warehouse-manager/shared test` en verde, con cobertura ≥ 80 %.
-- [ ] **4. API: configuración.**
+- [x] **4. API: configuración.**
   - Crear el paquete `apps/api`, `src/core/config.ts` y los tests **T3–T4**.
   - *Verificable:* T3–T4 en verde.
-- [ ] **5. API: app, health y Swagger.**
+- [x] **5. API: app, health y Swagger.**
   - Crear `src/app.ts` (`buildApp`, type provider de Zod, prefijo `/api/v1`), `src/core/swagger.ts`, `src/modules/health/health.routes.ts`, `src/server.ts` y los scripts `dev`/`build`/`test`, junto con los tests **T5–T6**.
   - *Verificable:* T5–T6 en verde, y `pnpm --filter @warehouse-manager/api dev` responde en `http://localhost:3000/api/v1/health` y `/api/docs`.
-- [ ] **6. Web: base.**
+- [x] **6. Web: base.**
   - Crear el paquete `apps/web` con Vite + React + TS, Tailwind v4 (`@tailwindcss/vite`), `shadcn init` (`components.json`, `cn`), `providers.tsx` (QueryClient) y `routes.tsx` (React Router).
   - *Verificable:* `pnpm --filter @warehouse-manager/web build` OK.
-- [ ] **7. Web: layout, placeholders y health.**
+- [x] **7. Web: layout, placeholders y health.**
   - Crear `modules.ts`, `AppLayout.tsx`, `ComingSoonPage.tsx`, `HomePage.tsx`, `fetchHealth.ts` y `HealthStatus.tsx`, junto con los tests **T7–T10**.
   - *Verificable:* T7–T10 en verde.
-- [ ] **8. Proxy y HTTPS dev.**
+- [x] **8. Proxy y HTTPS dev.**
   - En `vite.config.ts`: proxy `/api`, `host: true`, HTTPS condicional y `loadEnv` desde la raíz. Crear `infra/scripts/dev-certs.mjs`.
   - *Verificable:* con certificados, `https://localhost:5173` carga sin aviso; sin certificados, arranca en HTTP con aviso.
-- [ ] **9. Base de datos dev.**
+- [x] **9. Base de datos dev.**
   - Crear `infra/docker-compose.dev.yml` y `.env.example`.
   - *Verificable:* `pnpm dev:db` deja `postgres` en estado `healthy` (`docker compose ps`).
-- [ ] **10. README.**
+- [x] **10. README.**
   - Documentar: requisitos (Node 24, pnpm, Docker, mkcert); instalación; `.env`; `dev:db`; `dev`; `dev:certs`; cómo abrir la web desde el celular por IP LAN; cómo instalar la CA raíz de mkcert en Android e iOS (`mkcert -CAROOT`); `lint`/`typecheck`/`test`/`build`.
   - *Verificable:* el usuario sigue el README en limpio.
-- [ ] **11. Cierre.**
+- [x] **11. Cierre.**
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build` en todo el monorepo; hacer la verificación manual en el celular; llenar §14 Evidencia y actualizar `tests_requeridos_en_verde`.
   - Aplicar la Definition of Done (constitución §4).
 
@@ -426,6 +426,32 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 
 *(Se completa al cerrar la fase: salidas de comandos, cobertura, verificaciones manuales con fecha, dispositivo y responsable.)*
 
+**Avance 2026-10-07 (agente, Windows 10 + Node 24.18.1 + pnpm 12.9.1 + Docker 29.8.1):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` (desde limpio, sin `dist/`) | Los cuatro con código 0 (CA2). |
+| Tests | 10/10 en verde: `shared` 4 (T1, T2 ×3), `api` 6 (T3, T4 ×3, T5, T6), `web` 5 (T7, T8 ×2, T9, T10). Sin `skip`/`only`/`todo`. |
+| Cobertura `packages/shared` | 100 % en líneas, ramas, funciones y sentencias (CA6). |
+| `pnpm dev:db` | `warehouse-manager-dev-postgres-1` · `postgres:16-alpine` · `Up (healthy)` · `0.0.0.0:5432->5432/tcp` (CA4). |
+| `pnpm dev` | API en `:3000` y web en `:5173`; `GET http://127.0.0.1:5173/api/v1/health` (vía proxy de Vite) → `{"status":"ok","version":"0.1.0",…}`; sin certificados, Vite arranca en HTTP y avisa en consola (§8.4). |
+| Swagger | `/api/docs` → 200 y `/api/docs/json` documenta `GET /api/v1/health` con tag `system` (CA5, parte automática). Con `NODE_ENV=production` → 404 (§8.7). |
+| Env inválido | `PORT=abc` → "Configuración inválida: - PORT: …" y código 1 (§8.3). |
+| `pnpm dev:certs` sin mkcert | Mensaje en español que remite al README y código 1 (§8.5). |
+| API compilada | `node apps/api/dist/server.js` responde `/api/v1/health`. |
+
+**Verificación manual 2026-10-07 (usuario, Eliu Castillo):**
+
+| Criterio | Resultado |
+|---|---|
+| CA1 | Con `pnpm dev` (API en `PORT=3006`, `API_PROXY_TARGET=http://127.0.0.1:3006`), Inicio muestra "API: En línea" y la versión. |
+| CA3 | Celular Android con Chrome en la misma Wi-Fi, con la CA de mkcert instalada: `https://192.168.1.69:5173` abre sin aviso de certificado y muestra "API: En línea". Hizo falta cerrar Chrome por completo tras instalar la CA (agregado al README). Certificado: SAN `localhost`, `127.0.0.1`, `::1`, `192.168.1.69`; vence el 2029-01-07. |
+| CA5 | Swagger UI visible en `/api/docs` con `GET /api/v1/health`. |
+| CA7 | Barra inferior en el celular y barra lateral en la PC. |
+| TODO 10 | El usuario siguió el README (mkcert se instaló con winget tras `winget source update`). |
+| TODO 2 | El commit de cierre de F0 dispara el pre-commit (husky + lint-staged). |
+| Cierre | El usuario confirma el cierre de F0 (constitución §4.9). |
+
 ---
 
 ## 15. Registro de decisiones
@@ -437,3 +463,8 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-01 | F0 incluye HTTPS dev con mkcert; CI y Adminer quedan fuera. | Usuario (chat); plan §8 F0 actualizado |
 | 2026-10-01 | `/health` de F0 solo reporta la API; el chequeo de BD llega en F2. | Propuesta del agente; plan §8 F0 actualizado |
 | 2026-10-01 | Zod 4: `timestamp` usa `z.iso.datetime()` (reemplaza a `z.string().datetime()`, obsoleto). Spec pasa a `LISTA`. | Usuario (chat) |
+| 2026-10-07 | TypeScript 6.0.3 y no 7.0: `typescript-eslint` (< 6.1) y `ts-jest` (< 7) aún no soportan TS 7, así que 6.0.x es la última estable compatible (§4). En TS 6, `types` se declara explícito en cada `tsconfig`. | Agente, al implementar (regla de §4) |
+| 2026-10-07 | pnpm 12.9.1 (estable vigente). Sus scripts de instalación se controlan con `allowBuilds` en `pnpm-workspace.yaml`: se permite `esbuild` (de `tsx` y Vite) y se niegan `@parcel/watcher` y `unrs-resolver` (Jest), que traen binarios precompilados. | Agente, al implementar |
+| 2026-10-07 | Jest corre con `node --experimental-vm-modules` en `api` y `web`: `@fastify/swagger-ui` (vía `content-disposition`) y `react-router` 8 son solo ESM, y Jest 30 los carga con `require(esm)` solo con esa bandera. Los tests siguen compilando a CommonJS (§3). En `web`, el setup de Jest expone `TextEncoder` de `node:util` porque jsdom no lo trae. | Agente, al implementar |
+| 2026-10-07 | Archivos de soporte no listados en §5: `tsconfig.test.json` en cada paquete (override CJS de §3), `apps/web/src/test/setup.ts`, `apps/web/src/shared/NotFoundPage.tsx` (§8.6) y `tsBuildInfoFile` dentro de `dist/` para que `tsc -b` recompile si se borra `dist/`. `docs/` queda fuera de Prettier para no reformatear specs. | Agente, al implementar |
+| 2026-10-07 | F0 cumple la Definition of Done y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |
