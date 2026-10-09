@@ -18,6 +18,9 @@ const shared = {
 
 /** @type {import('jest').Config} */
 module.exports = {
+  // Con la caché de Jest fría, cargar Fastify + Swagger UI (ESM vía require(esm)) o preparar
+  // la BD puede pasar de los 5 s por defecto en un hook.
+  testTimeout: 30_000,
   projects: [
     {
       ...shared,

@@ -1,7 +1,7 @@
 ---
 id: fase-01
 titulo: Modelo de datos y contratos compartidos
-estado: EN_PROGRESO
+estado: COMPLETA
 depende_de: [fase-00]
 autoriza_codigo_en:
   - "package.json"
@@ -40,7 +40,7 @@ fuera_de_alcance:
 tests_requeridos_total: 26
 tests_requeridos_en_verde: 26
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en packages/shared y en apps/api/prisma/seed/** + apps/api/src/core/password.ts"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -987,7 +987,7 @@ ADMIN_INITIAL_PASSWORD=cambia-esta-clave
 - [x] **14. ERD.**
   - Crear `docs/erd.md` con los diagramas mermaid de organización/seguridad, catálogo/almacén y POS, con todos los campos de §4.
   - *Verificable:* revisión modelo por modelo contra `schema.prisma` (checklist en §14).
-- [ ] **15. Cierre.**
+- [x] **15. Cierre.**
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; registrar la cobertura; llenar §14 Evidencia y actualizar `tests_requeridos_en_verde`.
   - Aplicar la Definition of Done (constitución §4).
 
@@ -1062,7 +1062,7 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | Seed sin variables | `OWNER_INITIAL_PASSWORD` de 5 caracteres → mensaje en español que nombra la variable y código 1, sin conectarse (§9.1). |
 | ERD (CA8) | Checklist automatizada modelo por modelo (nombres, orden y nulabilidad de cada campo escalar de `docs/erd.md` contra `schema.prisma`): los 28 modelos coinciden — Branch 22, BranchCounter 5, CashRegister 7, CashSession 13, User 13, Role 6, Permission 6, RolePermission 3, UserPermission 3, UserBranch 4, RefreshToken 10, AuditLog 8, Category 6, Brand 5, Product 13, ProductVariant 11, ProductImage 8, Warehouse 7, Zone 11, Container 7, Rack 10, StockLocation 7, InventoryMovement 13, Cart 10, CartItem 9, Sale 22, SaleItem 12, Payment 8. Pendiente: revisión visual del usuario. |
 
-**Pendiente para cerrar:** que el usuario siga el README desde una BD vacía (TODO 13), revise el ERD (CA8) y confirme el cierre (constitución §4.9).
+**Cierre 2026-10-08 (usuario, Eliu Castillo):** confirma el README desde una BD vacía (TODO 13) y la revisión de `docs/erd.md` (CA8), y confirma el cierre (constitución §4.9). Antes de cerrar, `pnpm lint`, `pnpm typecheck`, `pnpm test` (297 casos: shared 187, web 5, api 110) y `pnpm build` volvieron a pasar en limpio.
 
 ---
 
@@ -1097,3 +1097,5 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4).
 | 2026-10-07 | R1 ocurrió: el cliente de Prisma 7.10 (`prisma-client`, ESM) usa `import.meta.url` para calcular `__dirname` y no carga en Jest con ts-jest en CJS. Se resuelve con un transformador de ts-jest (`apps/api/test/jest/import-meta-transformer.cjs`) que, solo en los tests, lo reemplaza por `require("node:url").pathToFileURL(__filename).href`. La API, `tsx` y el build siguen en ESM; la decisión de F0 no cambia. | Usuario (chat), opción recomendada por el agente |
 | 2026-10-07 | Prisma 7.10.0 (última estable: la etiqueta `latest` de `prisma` apunta a `8.0.0-rc.20`). En pnpm 12 los scripts de instalación de §3 se permiten con `allowBuilds` (equivalente de `onlyBuiltDependencies`). `@prisma/adapter-pg` trae `pg` y `@types/pg` como dependencias propias, así que no se declaran. | Agente, al implementar (regla de §2 y §3) |
 | 2026-10-07 | Ajustes al implementar: el `tsconfig` de `api` se divide en `tsconfig.build.json` (emite solo `src`) y `tsconfig.tools.json` (typecheck de `prisma/`, `test/` y `prisma.config.ts`), referenciados por `tsconfig.json` (§8). El `globalSetup` reinicia la BD de pruebas con `prisma db execute` (corre fuera del registro de módulos de Jest). Los scripts `test*` de `api` y el `typecheck` raíz corren `prisma generate` antes, porque Prisma 7 ya no regenera el cliente al migrar. `db:seed` y `seed:demo` de la raíz compilan `shared` antes. `prisma/load-env.ts` carga el `.env` de la raíz en las entradas de los seeds. | Agente, al implementar |
+| 2026-10-08 | Al cerrar, T5 y T6 de F0 fallaban de forma intermitente: con la caché de Jest fría, el `beforeAll` (cargar Fastify + Swagger UI vía `require(esm)`) superaba los 5 s por defecto. Se sube `testTimeout` a 30 s en `apps/api/jest.config.cjs` (perímetro de F1; no cambia ningún archivo de F0). Verificado con `--no-cache` dos veces. | Agente, al cerrar |
+| 2026-10-08 | F1 cumple la Definition of Done y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |
