@@ -78,3 +78,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Impresión (spec F3 §4): en pantalla #print-root no se ve; al imprimir solo se ve él. */
+#print-root {
+  display: none;
+}
+
+@media print {
+  body > :not(#print-root) {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block;
+  }
+}

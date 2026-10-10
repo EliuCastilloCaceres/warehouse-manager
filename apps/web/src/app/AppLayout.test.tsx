@@ -1,46 +1,46 @@
-import { QueryClient } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
-import { createMemoryRouter, RouterProvider } from 'react-router';
-import { Providers } from './providers';
-import { routes } from './routes';
+import type { SystemRoleCode } from '@warehouse-manager/shared';
+import { screen, within } from '@testing-library/react';
+import { makeSession } from '@/test/fixtures';
+import { jsonResponse, mockFetch } from '@/test/http';
+import { renderApp } from '@/test/renderApp';
 
-function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <Providers queryClient={queryClient}>
-      <RouterProvider router={router} />
-    </Providers>,
-  );
-}
+const ALL = [
+  ['Almacén', '/warehouse'],
+  ['Productos', '/products'],
+  ['POS', '/pos'],
+  ['Reportes', '/reports'],
+  ['Usuarios', '/users'],
+  ['Ajustes', '/settings'],
+];
 
 describe('AppLayout', () => {
-  beforeEach(() => {
-    globalThis.fetch = jest.fn().mockReturnValue(new Promise(() => {}));
-  });
-
-  it('muestra los 6 módulos con su href (T9)', async () => {
-    renderAt('/');
+  // Adapta T9 de F0: el menú se filtra por los permisos del rol.
+  it.each<[SystemRoleCode, string[][]]>([
+    ['OWNER', ALL],
+    ['ADMIN', ALL],
+    ['MANAGER', ALL],
+    ['SELLER', ALL.slice(0, 4)],
+    ['WAREHOUSE_CLERK', ALL.slice(0, 2)],
+  ])('%s ve sus módulos con el href correcto (T17)', async (role, expected) => {
+    mockFetch({ 'POST /api/v1/auth/refresh': () => jsonResponse(200, makeSession({ role })) });
+    renderApp('/pos-no-existe');
 
     const nav = await screen.findByRole('navigation', { name: 'Módulos' });
     const links = within(nav).getAllByRole('link');
     expect(
       links.map((link) => [link.getAttribute('aria-label'), link.getAttribute('href')]),
-    ).toEqual([
-      ['Almacén', '/warehouse'],
-      ['Productos', '/products'],
-      ['POS', '/pos'],
-      ['Reportes', '/reports'],
-      ['Usuarios', '/users'],
-      ['Ajustes', '/settings'],
-    ]);
+    ).toEqual(expected);
   });
 
-  it('en /pos muestra el placeholder sin llamar a la API (T10)', async () => {
-    renderAt('/pos');
+  // Adapta T10 de F0.
+  it('en /pos con pos.sell muestra el placeholder sin más fetch que el refresh (T18)', async () => {
+    const fetchMock = mockFetch({
+      'POST /api/v1/auth/refresh': () => jsonResponse(200, makeSession({ role: 'SELLER' })),
+    });
+    renderApp('/pos');
 
     expect(await screen.findByRole('heading', { name: 'POS' })).toBeInTheDocument();
     expect(screen.getByText('Próximamente')).toBeInTheDocument();
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

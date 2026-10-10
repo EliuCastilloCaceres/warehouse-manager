@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
+import { pwaOptions } from './src/app/pwaManifest';
 
 const webDir = fileURLToPath(new URL('.', import.meta.url));
 const rootDir = resolve(webDir, '../..');
@@ -23,8 +25,9 @@ function httpsOptions(keyPath: string | undefined, certPath: string | undefined)
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, rootDir, '');
+  const apiTarget = env.API_PROXY_TARGET || 'http://localhost:3000';
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), VitePWA(pwaOptions)],
     resolve: {
       alias: { '@': resolve(webDir, 'src') },
     },
@@ -33,7 +36,8 @@ export default defineConfig(({ command, mode }) => {
       port: 5173,
       https: command === 'serve' ? httpsOptions(env.DEV_HTTPS_KEY, env.DEV_HTTPS_CERT) : undefined,
       proxy: {
-        '/api': { target: env.API_PROXY_TARGET || 'http://localhost:3000', changeOrigin: false },
+        '/api': { target: apiTarget, changeOrigin: false },
+        '/uploads': { target: apiTarget, changeOrigin: false },
       },
     },
   };

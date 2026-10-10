@@ -10,7 +10,7 @@
     "noEmit": true,
     "declaration": false,
     "sourceMap": false,
-    "types": ["vite/client"],
+    "types": ["vite/client", "vite-plugin-pwa/client"],
     "paths": {
       "@/*": ["./src/*"]
     }

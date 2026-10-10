@@ -1,7 +1,7 @@
 ---
 id: fase-03
 titulo: Núcleo frontend
-estado: LISTA
+estado: EN_PROGRESO
 depende_de: [fase-02]
 autoriza_codigo_en:
   - "apps/web/**"
@@ -19,7 +19,7 @@ fuera_de_alcance:
   - "Selector entre varias cámaras; se usa la trasera (facingMode: environment)"
   - "E2E con Playwright y CSP de Nginx (F10)"
 tests_requeridos_total: 32
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 32
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/web/src/shared/api/**, apps/web/src/features/auth/**, apps/web/src/features/branch/** y apps/web/src/shared/scan/** (excepto el adaptador cameraScanner.ts, que se verifica a mano)"
 definition_of_done: pendiente
 bloqueado_por: []
@@ -136,7 +136,7 @@ N/A: F3 no crea endpoints. Consume estos de F2:
 
 | Paquete | Dependencias | DevDependencies |
 |---|---|---|
-| `apps/web` | `react-hook-form`, `@hookform/resolvers`, `@zxing/browser`, `@zxing/library`, `jsbarcode`, `qrcode`, `sonner` y los paquetes Radix que el CLI de shadcn agregue para los 8 componentes de §4 | `vite-plugin-pwa`, `@types/qrcode`, `@testing-library/user-event` |
+| `apps/web` | `react-hook-form`, `@hookform/resolvers`, `@zxing/browser`, `@zxing/library`, `jsbarcode`, `qrcode`, `sonner` y los paquetes Radix que el CLI de shadcn agregue para los 8 componentes de §4 | `vite-plugin-pwa`, `workbox-window` (peer dependency de `vite-plugin-pwa`, autorizada el 2026-10-10), `@types/qrcode`, `@testing-library/user-event` |
 
 Cualquier otra dependencia se pregunta (P2), incluido `next-themes`, que no se usa.
 
@@ -450,3 +450,12 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T9 
 | 2026-10-03 | El contenido del ticket mide 72 mm (papel de 80 mm) y 48 mm (papel de 58 mm), el ancho imprimible. | Propuesta del agente; aprobada por el usuario (2026-10-03) |
 | 2026-10-03 | Rol `OWNER` ("Propietario"): T17 lo incluye con los 6 módulos. | Usuario (chat), durante la redacción de F4; F1 §6.4 actualizado |
 | 2026-10-03 | `ScanInput` entrega las lecturas `promo` (QR de promoción) a `onScan`; `/dev/scanner` las muestra con su texto. T26 agrega el caso. | Usuario (chat), durante la redacción de F5; F1 §6.8 actualizado |
+| 2026-10-10 | Entorno de Jest propio (`src/test/jsdom-environment.cjs`): jsdom con `Request`, `Response`, `Headers`, `AbortController` y `structuredClone` de Node, porque React Router 8 crea un `Request` en cada navegación. `FormData` y `Blob` quedan los de jsdom. | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | El CLI de shadcn agregó `next-themes` y un paquete npm ajeno llamado `cn`: se quitaron y los imports apuntan a `@/lib/utils`. Botones e inputs de 44 px de alto (`h-11`). | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | Tras un logout se va a `/login` sin `next`; si la sesión expira, se conserva `next` con la ruta actual (`sessionStore` guarda el motivo). | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | La confirmación de la contraseña nueva se valida con un *resolver* que envuelve `zodResolver(ChangePasswordInput)`, en lugar de una regla `validate`: mismo mensaje y sin llamar a la API. Los mensajes de Zod de los formularios se traducen con `spanishErrors`. | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | `onScan(result, { source })`: el segundo argumento (`camera`, `hid` o `manual`) alimenta la columna "Origen" de `/dev/scanner`. Tras una lectura de cámara el foco no vuelve al campo, porque en el celular abriría el teclado; tras tecleo o lector sí. Una lectura inválida de la cámara deja el visor abierto con "Código no reconocido". `cameraAvailable()` vive en `CameraViewer.tsx` para quedar cubierta por tests. | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | `@page { size: 80mm auto }` y `58mm auto` (§4, T30) no son CSS válido: el navegador los ignora y usa el papel del driver. Se mantienen como dice la spec; `PrintLayout` fija el ancho del contenido (72 y 48 mm) y el README indica elegir el rollo en el driver. | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | `theme_color` y `background_color` = `#ffffff` (`--background` de shadcn, igual que el header). Íconos: `public/icons/icon.svg` (caja) y PNG generados con `pnpm dlx @vite-pwa/assets-generator` y una configuración de un solo uso fuera del repo (fondo `#171717` en *maskable* y Apple). | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | T23 vive en `date.test.ts`, como dice §10: renderiza `Money` con `createElement`. Se agrega `formatTime` (hora de `/dev/scanner`). | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | Q1: se agrega `workbox-window` como devDependency de `apps/web`. Es peer dependency obligatoria de `vite-plugin-pwa`, y sin ella `virtual:pwa-register` no se resuelve con pnpm y `pnpm build` falla. | Usuario (chat), durante la implementación (TODO 11) |
