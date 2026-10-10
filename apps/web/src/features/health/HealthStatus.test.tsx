@@ -26,6 +26,7 @@ describe('HealthStatus', () => {
         version: '0.1.0',
         uptimeSeconds: 5,
         timestamp: '2026-10-01T18:00:00.000Z',
+        database: 'ok',
       }),
     } as Response);
 

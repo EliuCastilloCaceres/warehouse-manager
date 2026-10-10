@@ -7,3 +7,4 @@ infra/certs/
 .DS_Store
 *.tsbuildinfo
 apps/api/src/generated/
+apps/api/uploads/

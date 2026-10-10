@@ -38,8 +38,19 @@ module.exports = {
       globalSetup: '<rootDir>/test/integration/global-setup.ts',
     },
   ],
-  collectCoverageFrom: ['<rootDir>/prisma/seed/**/*.ts', '<rootDir>/src/core/password.ts'],
+  // F1: seeds + password.ts · F2: core, auth e inventory.
+  collectCoverageFrom: [
+    '<rootDir>/prisma/seed/**/*.ts',
+    '<rootDir>/src/core/**/*.ts',
+    '<rootDir>/src/modules/auth/**/*.ts',
+    '<rootDir>/src/modules/inventory/**/*.ts',
+    '!<rootDir>/src/**/*.test.ts',
+  ],
   coverageThreshold: {
     global: { lines: 80, branches: 80 },
+    './prisma/seed/': { lines: 80, branches: 80 },
+    './src/core/': { lines: 80, branches: 80 },
+    './src/modules/auth/': { lines: 80, branches: 80 },
+    './src/modules/inventory/': { lines: 80, branches: 80 },
   },
 };

@@ -1,7 +1,7 @@
 ---
 id: fase-02
 titulo: Núcleo backend
-estado: LISTA
+estado: COMPLETA
 depende_de: [fase-01]
 autoriza_codigo_en:
   - "apps/api/package.json"
@@ -35,9 +35,9 @@ fuera_de_alcance:
   - "Soporte HEIC y almacenamiento S3/MinIO (solo queda la interfaz StorageService)"
   - "Bloqueo de cuentas por intentos fallidos más allá del rate limit"
 tests_requeridos_total: 41
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 41
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/api/src/core/**, apps/api/src/modules/auth/** y apps/api/src/modules/inventory/**; se mantiene ≥ 80% en packages/shared"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -361,55 +361,55 @@ Firma común: `método(tx, input)`. Todo `input` incluye `userId` y, opcionalmen
 
 ## 10. TODOs (en orden, verificables)
 
-- [ ] **1. Dependencias y configuración.**
+- [x] **1. Dependencias y configuración.**
   - Instalar las dependencias de §3, extender `config.ts` (§4), `.env.example` y `.gitignore`. Adaptar T3/T4 de F0 y crear **T1–T2**.
   - *Verificable:* T1–T2 y T3/T4 de F0 en verde.
-- [ ] **2. Errores.**
+- [x] **2. Errores.**
   - Ampliar `ErrorCode` y `ValidationIssue` en `shared`. Crear `core/errors.ts` y el plugin `errorHandler` (incluye el `notFoundHandler`). Tests **T3** y **T11**.
   - *Verificable:* T3 y T11 en verde.
-- [ ] **3. Prisma y health.**
+- [x] **3. Prisma y health.**
   - Crear el plugin `prisma` y aceptar `deps` en `buildApp`. Agregar el chequeo de BD en `/health` y el cambio de `HealthDto`. Adaptar T1 (shared), T5 (api) y el fixture de T7 (web) de F0. Tests **T8** (parte de health) y **T10**.
   - *Verificable:* T8, T10 y los tests de F0 en verde.
-- [ ] **4. Contexto de petición y logs.**
+- [x] **4. Contexto de petición y logs.**
   - Crear `requestContext` (`genReqId`, `x-request-id`, `redact`) y el test **T26**.
   - *Verificable:* T26 en verde.
-- [ ] **5. Control de acceso.**
+- [x] **5. Control de acceso.**
   - Crear los plugins `security`, `auth` (JWT) y `access` (`onRoute` + `preHandler`), `permissions.ts` y las rutas de prueba. Tests **T4**, **T9** y **T19**.
   - *Verificable:* T4, T9 y T19 en verde.
-- [ ] **6. Contexto de sucursal.**
+- [x] **6. Contexto de sucursal.**
   - Crear el plugin `branchContext` y el test **T23**.
   - *Verificable:* T23 en verde.
-- [ ] **7. Auditoría.**
+- [x] **7. Auditoría.**
   - Crear `AuditService` y el test **T29**.
   - *Verificable:* T29 en verde.
-- [ ] **8. Contratos de auth.**
+- [x] **8. Contratos de auth.**
   - Crear `shared/auth.ts` y el test **T7**; completar **T8**.
   - *Verificable:* T7–T8 en verde.
-- [ ] **9. Login.**
+- [x] **9. Login.**
   - Crear `tokens.ts`, `auth.repository.ts`, el login en `auth.service.ts`/`auth.routes.ts` y su rate limit. Tests **T5**, **T12–T14** y **T22**.
   - *Verificable:* T5, T12–T14 y T22 en verde.
-- [ ] **10. Refresh y logout.**
+- [x] **10. Refresh y logout.**
   - Implementar la rotación, la detección de reutilización, la comprobación de `Origin`, `logout` y `revokeAllForUser`. Tests **T15–T18** y **T25**.
   - *Verificable:* T15–T18 y T25 en verde.
-- [ ] **11. `me` y cambio de contraseña.**
+- [x] **11. `me` y cambio de contraseña.**
   - Implementar `GET /auth/me`, `POST /auth/change-password` y el bloqueo por `mcp`. Tests **T20**, **T21** y **T24**.
   - *Verificable:* T20, T21 y T24 en verde.
-- [ ] **12. Paginación.**
+- [x] **12. Paginación.**
   - Crear `core/pagination.ts` y el test **T6**.
   - *Verificable:* T6 en verde.
-- [ ] **13. Uploads.**
+- [x] **13. Uploads.**
   - Crear `shared/uploads.ts`, `StorageService` + `LocalStorageService`, `image.processor.ts`, las rutas y el static de desarrollo. Tests **T27–T28**.
   - *Verificable:* T27–T28 en verde.
-- [ ] **14. InventoryService.**
+- [x] **14. InventoryService.**
   - Crear `inventory.repository.ts`, `inventory.service.ts` y los tests **T30–T37**.
   - *Verificable:* T30–T37 en verde.
-- [ ] **15. Concurrencia.**
+- [x] **15. Concurrencia.**
   - Tests **T38–T40**.
   - *Verificable:* T38–T40 en verde de forma estable (5 corridas seguidas sin fallos).
-- [ ] **16. Swagger.**
+- [x] **16. Swagger.**
   - Agregar tags y el esquema `bearerAuth`, con `security` en las rutas no públicas. Test **T41**.
   - *Verificable:* T41 en verde y `/api/docs` muestra el candado en las rutas protegidas.
-- [ ] **17. README y cierre.**
+- [x] **17. README y cierre.**
   - En el README: `JWT_SECRET`, `COOKIE_SECURE` en HTTP y probar el login con Swagger/curl.
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; registrar la cobertura; llenar §13 Evidencia; aplicar la Definition of Done (constitución §4).
 
@@ -487,6 +487,18 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T1,
 
 *(Se completa al cerrar la fase.)*
 
+**Avance 2026-10-10 (agente, Windows 10 + Node 24.18.1 + pnpm 12.9.1 + Docker 29.8.1):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` (desde limpio, con `pnpm dev:db`) | Los cuatro con código 0, incluidos los tests de F0 y F1 (CA8). |
+| Tests | 41/41 requeridos en verde. `shared`: 201 casos (T7, T8 y los de F0/F1). `api`: 282 casos en 45 suites (`unit` + `integration`). `web`: 5. Sin `skip`/`only`/`todo`. Regresión declarada de F0 adaptada y en verde: T1 (shared), T3/T4 (config), T5 (health) y el fixture de T7 (web). |
+| Cobertura (`apps/api`, umbral por carpeta) | `src/core/**` 100 % líneas · 96 % ramas; `src/modules/auth/**` 98 % · 83 %; `src/modules/inventory/**` 94 % · 84 %; `prisma/seed/**` 100 % · 98 %. `packages/shared`: 100 % · 98 % (CA9). |
+| Concurrencia (TODO 15) | `inventory-concurrency.int.test.ts` (T38–T40) 5 corridas seguidas: 3/3 en cada una. |
+| API compilada contra la BD de desarrollo | `GET /api/v1/health` → `database: "ok"`; `POST /auth/login` (admin) → 200 con `Set-Cookie: wm_rt=…; Max-Age=604800; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Strict` y `x-request-id`; `GET /auth/me` con el token → `MeDto` (`mustChangePassword: true`); `POST /uploads/product-images` sin token → 401. |
+
+**Cierre 2026-10-10 (usuario, Eliu Castillo):** verifica en `/api/docs` el candado de las rutas protegidas (CA7) y confirma el cierre (constitución §4.9). Corrida final de `pnpm test`: 488 casos en verde (shared 201, web 5, api 282); T13 no volvió a fallar.
+
 ---
 
 ## 14. Registro de decisiones
@@ -512,3 +524,6 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T1,
 | 2026-10-03 | Rol `OWNER` ("Propietario"): recibe todas las sucursales activas en `branchIds`, igual que el Administrador. Cambian §2 (claims) y los tests T4 y T22. | Usuario (chat), durante la redacción de F4; F1 §6.4 y plan §6.2 actualizados |
 | 2026-10-03 | El Vendedor tiene 8 permisos (se agrega `inventory.other_branches.read`) y el seed crea `S2`; cambia T22. | Usuario (chat), durante la revisión de F6; F1 §6.4 y §7.2 actualizados |
 | 2026-10-03 | Los ajustes (`ADJUSTMENT_IN`/`ADJUSTMENT_OUT`) exigen `adjustmentReason` además de `note`; cambian §8, T30 y T35. | Usuario (chat), durante la redacción de F7; F1 §4.1 y §4.5 actualizados |
+| 2026-10-10 | Ajustes al implementar: (1) `sharp` 0.35 trae binarios precompilados y pnpm 12 no pide aprobar su script, así que no se agrega a `allowBuilds`. (2) Con el adaptador `pg` de Prisma 7, P2002 ya no trae `meta.target` con campos: `details.target` (y `details.constraint`) es el nombre del índice que viene en `meta.driverAdapterError`; los CHECK por SQL crudo llegan como P2010 con código `23514`. Una conexión rechazada (`ECONNREFUSED`, P1001) o un error de inicialización → 503 `DB_UNAVAILABLE`. (3) La comprobación de `Origin` se declara por ruta con `config.checkOrigin` (la aplica el plugin `access`). (4) `AuthService` se decora en la app (`app.authService`) para que F4 use `revokeAllForUser`. (5) El logger serializa los headers de la petición para que `redact` los oculte, y `buildApp` acepta un objeto de logger (T26). (6) Tests unitarios extra de `toApiError`, `loggerOptions`/`genReqId` y `LocalStorageService`, como complemento de T11/T26/T27 para alcanzar la cobertura de la cabecera. (7) `jest.config.cjs` mide cobertura con umbral por carpeta (`src/core/`, `src/modules/auth/`, `src/modules/inventory/`, `prisma/seed/`). | Agente, al implementar |
+| 2026-10-10 | Observación: T13 falló una vez en la primera corrida con la caché de Jest fría y no se reprodujo en 6 corridas posteriores (incluidas las del monorepo completo). Se sigue vigilando en las corridas de cierre. | Agente, al implementar |
+| 2026-10-10 | F2 cumple la Definition of Done y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |

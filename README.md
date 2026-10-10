@@ -58,6 +58,27 @@ pnpm seed:demo    # opcional: zonas, racks y un catálogo de ejemplo (sin stock)
 - **Cambios al modelo:** edita `schema.prisma` y corre `pnpm db:migrate --name <descripcion>`. Después regenera el cliente con `pnpm --filter @warehouse-manager/api db:generate` (Prisma 7 ya no lo hace solo al migrar; `build`, `typecheck` y `test` lo regeneran por su cuenta).
 - **Empezar de cero en desarrollo** (borra todos los datos de `warehouse_dev`): `pnpm --filter @warehouse-manager/api exec prisma migrate reset`, y luego `pnpm db:seed` (y `pnpm seed:demo` si lo quieres).
 
+## Autenticación (API)
+
+- **`JWT_SECRET`** (obligatoria, ≥ 32 caracteres) firma los access tokens. Genera una por equipo y no la compartas: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. Si cambia, todas las sesiones abiertas dejan de servir.
+- El access token dura `ACCESS_TTL_MIN` (15 min) y viaja en `Authorization: Bearer`. El refresh token va en la cookie `wm_rt` (`HttpOnly`, `SameSite=Strict`, solo en `/api/v1/auth`), dura `REFRESH_TTL_DAYS` (7 días) y se renueva en cada uso.
+- **`COOKIE_SECURE`:** con `true` (por defecto) el navegador solo guarda la cookie por **HTTPS**. Si en desarrollo abres la web por `http://`, pon `COOKIE_SECURE=false` o no podrás renovar la sesión.
+- Un usuario con `mustChangePassword` (como `owner` y `admin` recién sembrados) solo puede usar `GET /auth/me`, `POST /auth/change-password` y `POST /auth/logout` hasta cambiar su contraseña.
+
+**Probar el login con Swagger:** abre `/api/docs`, ejecuta `POST /api/v1/auth/login` con `{ "username": "admin", "password": "<ADMIN_INITIAL_PASSWORD>" }`, copia `accessToken` de la respuesta, pulsa **Authorize** (candado) y pégalo. Las rutas con candado ya se pueden probar.
+
+**Con curl** (cambia el puerto si usas otro `PORT`):
+
+```bash
+curl -s -c cookies.txt -H 'content-type: application/json' \
+  -d '{"username":"admin","password":"<ADMIN_INITIAL_PASSWORD>"}' \
+  http://127.0.0.1:3000/api/v1/auth/login                 # devuelve accessToken y guarda la cookie
+curl -s -H "authorization: Bearer <accessToken>" http://127.0.0.1:3000/api/v1/auth/me
+curl -s -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:3000/api/v1/auth/refresh
+```
+
+Con `COOKIE_SECURE=true`, curl no reenvía la cookie por `http://`; para probar `refresh` con curl por HTTP usa `COOKIE_SECURE=false`.
+
 ## Pruebas
 
 `pnpm test` corre los tests de los tres paquetes. Los de integración de la API usan la BD de pruebas (`TEST_DATABASE_URL`, puerto 5433), así que **requieren `pnpm dev:db`**. Antes de correr, borran esa BD y le aplican las migraciones; por seguridad se niegan a correr si `TEST_DATABASE_URL` no termina en `_test` o si es igual a `DATABASE_URL`.
