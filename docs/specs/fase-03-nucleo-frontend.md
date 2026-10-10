@@ -424,6 +424,25 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T9 
 
 *(Se completa al cerrar la fase.)*
 
+### Verificación manual (parcial, 2026-10-10)
+
+| CA | Dispositivo y navegador | Resultado |
+|---|---|---|
+| CA1 | Android (Chrome) y escritorio (Chrome), servidor de desarrollo por HTTPS en la LAN | OK: login, logout y cambio de contraseña obligatorio de `admin` y `owner` |
+| CA2 | Escritorio (Chrome), API con `ACCESS_TTL_MIN=1` | OK: la sesión se renueva sola al expirar el access token |
+| CA3 | Escritorio (Chrome), dos pestañas | OK: el logout en una pestaña cierra la otra |
+| CA7 | Android (Chrome), cámara por HTTPS | OK: lee QR y Code128. **iPhone pendiente** |
+| CA8 | PC de la sucursal (Chrome) vía túnel de Cloudflare | OK: lector por cable USB y por Bluetooth |
+| CA10 | Android (Chrome): build (`vite preview`, :4173) y desarrollo (:5173) | OK: se instala y abre como app. **iOS pendiente** |
+| — | Proxy de `/uploads` en desarrollo | OK: imagen existente 200 `image/png`; inexistente 404 |
+
+**Pendiente para cerrar:**
+- CA9: imprimir la etiqueta de prueba 50×25 mm en la Ribetec RT-420ME y leerla con cámara y lector.
+- CA7 y CA10 en iPhone.
+- CA8: confirmar la lectura con el foco fuera de campos editables.
+- Aprobar las 8 propuestas del 2026-10-10 en §13.
+- Salidas de lint, typecheck, test, build y cobertura (CA11 y CA12) al cerrar.
+
 ---
 
 ## 13. Registro de decisiones
