@@ -32,7 +32,7 @@ export function scanFeedback(): void {
     const gain = context.createGain();
     oscillator.type = 'square';
     oscillator.frequency.value = 1800;
-    gain.gain.value = 0.05;
+    gain.gain.value = 0.5;
     oscillator.connect(gain).connect(context.destination);
     oscillator.start();
     oscillator.stop(context.currentTime + 0.08);

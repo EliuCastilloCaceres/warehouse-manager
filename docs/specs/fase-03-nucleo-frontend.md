@@ -1,7 +1,7 @@
 ---
 id: fase-03
 titulo: Núcleo frontend
-estado: EN_PROGRESO
+estado: COMPLETA
 depende_de: [fase-02]
 autoriza_codigo_en:
   - "apps/web/**"
@@ -21,7 +21,7 @@ fuera_de_alcance:
 tests_requeridos_total: 32
 tests_requeridos_en_verde: 32
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/web/src/shared/api/**, apps/web/src/features/auth/**, apps/web/src/features/branch/** y apps/web/src/shared/scan/** (excepto el adaptador cameraScanner.ts, que se verifica a mano)"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -314,43 +314,43 @@ Los textos visibles van en español.
 
 ## 9. TODOs (en orden, verificables)
 
-- [ ] **1. Dependencias.**
+- [x] **1. Dependencias.**
   - Instalar las de §5 y agregar con el CLI de shadcn los 8 componentes de §4 (adaptar `sonner` sin `next-themes`).
   - *Verificable:* `pnpm --filter @warehouse-manager/web build` OK.
-- [ ] **2. Cliente HTTP.**
+- [x] **2. Cliente HTTP.**
   - Crear `shared/api/errors.ts`, `apiClient.ts` y `refresh.ts`. Tests **T1–T7**.
   - *Verificable:* T1–T7 en verde.
-- [ ] **3. Sesión.**
+- [x] **3. Sesión.**
   - Crear `sessionStore`, `AuthProvider` (arranque, logout, `BroadcastChannel`), `safeNext`, `LoginPage`, `RequireAuth` y las rutas públicas y protegidas. Tests **T8–T10**, **T13** y **T14**.
   - *Verificable:* T8–T10, T13 y T14 en verde.
-- [ ] **4. Cambio de contraseña obligatorio.**
+- [x] **4. Cambio de contraseña obligatorio.**
   - Crear `ChangePasswordPage` y `RequirePasswordChanged`, y conectar el 403 `AUTH_PASSWORD_CHANGE_REQUIRED`. Tests **T11–T12**.
   - *Verificable:* T11–T12 en verde.
-- [ ] **5. Permisos y menú.**
+- [x] **5. Permisos y menú.**
   - Crear `<Can>`, `RequirePermission` y `NoAccessPage`; agregar `permission` en `modules.ts`; filtrar el menú; crear el menú de usuario. Adaptar T9/T10 de F0. Tests **T15–T18**.
   - *Verificable:* T15–T18 y los tests de F0 en verde.
-- [ ] **6. Sucursal.**
+- [x] **6. Sucursal.**
   - Crear `BranchProvider`, `SelectBranchPage`, `RequireBranch`, la pantalla "Sin sucursales" y el header `X-Branch-Id`. Tests **T19–T20**.
   - *Verificable:* T19–T20 en verde.
-- [ ] **7. Design system.**
+- [x] **7. Design system.**
   - Crear `DataTable`, los estados, `CapacityBar`, `ResponsiveDialog`, `ConfirmDialog`, `notify` y `useMediaQuery`. Tests **T21**, **T22** y **T24**.
   - *Verificable:* T21, T22 y T24 en verde.
-- [ ] **8. Formato.**
+- [x] **8. Formato.**
   - Crear `shared/format/date.ts` y `Money.tsx`. Test **T23**.
   - *Verificable:* T23 en verde.
-- [ ] **9. `ScanInput`.**
+- [x] **9. `ScanInput`.**
   - Crear `hidDetector`, `cameraScanner` (adaptador), `CameraViewer`, `feedback`, `ScanInput` y `ScannerTestPage`. Tests **T25–T28**.
   - *Verificable:* T25–T28 en verde, y en `https://<IP-LAN>:5173/dev/scanner` la cámara de un celular lee un Code128 y un QR.
-- [ ] **10. Impresión.**
+- [x] **10. Impresión.**
   - Crear `PrintLayout`, `usePrint`, `Barcode` y `QrCode`, y la etiqueta de prueba en `/dev/scanner`. Tests **T29–T30**.
   - *Verificable:* T29–T30 en verde, y la vista previa de impresión del navegador muestra la etiqueta de 50×25 mm.
-- [ ] **11. PWA.**
+- [x] **11. PWA.**
   - Crear `pwaManifest.ts`, `pwaUpdate.ts` y los íconos; configurar `VitePWA` y registrar el service worker en `main.tsx`. Tests **T31–T32**.
   - *Verificable:* T31–T32 en verde, y `pnpm --filter @warehouse-manager/web build` genera `manifest.webmanifest` y `sw.js`.
-- [ ] **12. Proxy `/uploads`.**
+- [x] **12. Proxy `/uploads`.**
   - Agregar el proxy en `vite.config.ts`.
   - *Verificable:* con la API de desarrollo arriba, una imagen subida en F2 se abre en `https://localhost:5173/uploads/…`.
-- [ ] **13. README y cierre.**
+- [x] **13. README y cierre.**
   - En el README: flujo de login y primer cambio de contraseña, instalar la PWA en Android (Chrome) e iOS (Safari, "Agregar a inicio"), uso de `/dev/scanner` y conexión del lector por cable o por Bluetooth (receptor USB).
   - En el README, configuración de impresión: tamaño de papel en el driver de la TM-T20III y de la RT-420ME, y en el diálogo del navegador márgenes "Ninguno" y escala 100 %.
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; hacer las verificaciones manuales; registrar la cobertura; llenar §12 Evidencia y aplicar la Definition of Done (constitución §4).
@@ -424,24 +424,31 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T9 
 
 *(Se completa al cerrar la fase.)*
 
-### Verificación manual (parcial, 2026-10-10)
+**Avance 2026-10-12 (agente, Windows 11 + Node 24.20.0 + pnpm 12.9.1 + Docker 29.8.0):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` (con `pnpm dev:db`) | Los cuatro con código 0, incluidos los tests de F0, F1 y F2 (CA11). |
+| Tests | 32/32 requeridos en verde. `web`: 165 casos en 21 suites. `shared`: 201. `api`: 282 en 45 suites. Sin `skip`/`only`/`todo`/`xit`. |
+| Cobertura (`apps/web`, `jest --coverage`, umbral por carpeta 80 %) | `shared/api/**` 96,96 % líneas · 87,8 % ramas; `features/auth/**` 95,21 % · 80,89 %; `features/branch/**` 93,05 % · 85,36 %; `shared/scan/**` (sin `cameraScanner.ts`) 94,56 % · 92,2 %. Total 95,04 % · 86,29 % (CA12). |
+| Build de la PWA (TODO 11) | `dist/manifest.webmanifest` y `dist/sw.js` (precache de 15 entradas). |
+| Hardware e impresión (CA13) | Plan §13.6 registra la TM-T20III, el lector HID y la RT-420ME. `PrintLayout` incluye `label-50x25`, `label-4x6`, `a4`, `letter`, `ticket-80` y `ticket-58` (T30). |
+| Alcance (constitución §4.6) | Fuera de `apps/web/**` solo cambian `README.md`, `pnpm-lock.yaml` y esta spec. |
+
+### Verificación manual (usuario, 2026-10-10 a 2026-10-12)
 
 | CA | Dispositivo y navegador | Resultado |
 |---|---|---|
 | CA1 | Android (Chrome) y escritorio (Chrome), servidor de desarrollo por HTTPS en la LAN | OK: login, logout y cambio de contraseña obligatorio de `admin` y `owner` |
 | CA2 | Escritorio (Chrome), API con `ACCESS_TTL_MIN=1` | OK: la sesión se renueva sola al expirar el access token |
 | CA3 | Escritorio (Chrome), dos pestañas | OK: el logout en una pestaña cierra la otra |
-| CA7 | Android (Chrome), cámara por HTTPS | OK: lee QR y Code128. **iPhone pendiente** |
-| CA8 | PC de la sucursal (Chrome) vía túnel de Cloudflare | OK: lector por cable USB y por Bluetooth |
-| CA10 | Android (Chrome): build (`vite preview`, :4173) y desarrollo (:5173) | OK: se instala y abre como app. **iOS pendiente** |
-| — | Proxy de `/uploads` en desarrollo | OK: imagen existente 200 `image/png`; inexistente 404 |
+| CA7 | Android (Chrome) e iPhone, cámara por HTTPS | OK: lee QR y Code128. En iPhone el beep se oía bajo; se subió el volumen (§13) |
+| CA8 | PC de la sucursal (Chrome) vía túnel de Cloudflare | OK: lector por cable USB y por Bluetooth, con el foco en el campo y fuera de él. El código de ejemplo con guiones (`ZAP0101-25-NEG`) daba "Código no reconocido" hasta configurar el idioma de teclado del lector igual al de Windows (§13) |
+| CA9 | Ribetec RT-420ME en la sucursal (Chrome vía túnel de Cloudflare) | OK: la etiqueta de prueba 50×25 mm se lee con la cámara y con el lector |
+| CA10 | Android (Chrome): build (`vite preview`, :4173) y desarrollo (:5173). iPhone (Safari, "Agregar a inicio") vía túnel de Cloudflare | OK: se instala y abre como app en Android y en iOS |
+| — | Proxy de `/uploads` en desarrollo (TODO 12) | OK: imagen existente 200 `image/png`; inexistente 404 |
 
-**Pendiente para cerrar:**
-- CA9: imprimir la etiqueta de prueba 50×25 mm en la Ribetec RT-420ME y leerla con cámara y lector.
-- CA7 y CA10 en iPhone.
-- CA8: confirmar la lectura con el foco fuera de campos editables.
-- Aprobar las 8 propuestas del 2026-10-10 en §13.
-- Salidas de lint, typecheck, test, build y cobertura (CA11 y CA12) al cerrar.
+**Cierre 2026-10-12 (usuario, Eliu Castillo):** completa la verificación manual en Android, iPhone y la PC de la sucursal y confirma el cierre (constitución §4.9).
 
 ---
 
@@ -469,12 +476,15 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests T9 
 | 2026-10-03 | El contenido del ticket mide 72 mm (papel de 80 mm) y 48 mm (papel de 58 mm), el ancho imprimible. | Propuesta del agente; aprobada por el usuario (2026-10-03) |
 | 2026-10-03 | Rol `OWNER` ("Propietario"): T17 lo incluye con los 6 módulos. | Usuario (chat), durante la redacción de F4; F1 §6.4 actualizado |
 | 2026-10-03 | `ScanInput` entrega las lecturas `promo` (QR de promoción) a `onScan`; `/dev/scanner` las muestra con su texto. T26 agrega el caso. | Usuario (chat), durante la redacción de F5; F1 §6.8 actualizado |
-| 2026-10-10 | Entorno de Jest propio (`src/test/jsdom-environment.cjs`): jsdom con `Request`, `Response`, `Headers`, `AbortController` y `structuredClone` de Node, porque React Router 8 crea un `Request` en cada navegación. `FormData` y `Blob` quedan los de jsdom. | Propuesta del agente; pendiente de aprobación |
-| 2026-10-10 | El CLI de shadcn agregó `next-themes` y un paquete npm ajeno llamado `cn`: se quitaron y los imports apuntan a `@/lib/utils`. Botones e inputs de 44 px de alto (`h-11`). | Propuesta del agente; pendiente de aprobación |
-| 2026-10-10 | Tras un logout se va a `/login` sin `next`; si la sesión expira, se conserva `next` con la ruta actual (`sessionStore` guarda el motivo). | Propuesta del agente; pendiente de aprobación |
-| 2026-10-10 | La confirmación de la contraseña nueva se valida con un *resolver* que envuelve `zodResolver(ChangePasswordInput)`, en lugar de una regla `validate`: mismo mensaje y sin llamar a la API. Los mensajes de Zod de los formularios se traducen con `spanishErrors`. | Propuesta del agente; pendiente de aprobación |
-| 2026-10-10 | `onScan(result, { source })`: el segundo argumento (`camera`, `hid` o `manual`) alimenta la columna "Origen" de `/dev/scanner`. Tras una lectura de cámara el foco no vuelve al campo, porque en el celular abriría el teclado; tras tecleo o lector sí. Una lectura inválida de la cámara deja el visor abierto con "Código no reconocido". `cameraAvailable()` vive en `CameraViewer.tsx` para quedar cubierta por tests. | Propuesta del agente; pendiente de aprobación |
-| 2026-10-10 | `@page { size: 80mm auto }` y `58mm auto` (§4, T30) no son CSS válido: el navegador los ignora y usa el papel del driver. Se mantienen como dice la spec; `PrintLayout` fija el ancho del contenido (72 y 48 mm) y el README indica elegir el rollo en el driver. | Propuesta del agente; pendiente de aprobación |
-| 2026-10-10 | `theme_color` y `background_color` = `#ffffff` (`--background` de shadcn, igual que el header). Íconos: `public/icons/icon.svg` (caja) y PNG generados con `pnpm dlx @vite-pwa/assets-generator` y una configuración de un solo uso fuera del repo (fondo `#171717` en *maskable* y Apple). | Propuesta del agente; pendiente de aprobación |
-| 2026-10-10 | T23 vive en `date.test.ts`, como dice §10: renderiza `Money` con `createElement`. Se agrega `formatTime` (hora de `/dev/scanner`). | Propuesta del agente; pendiente de aprobación |
+| 2026-10-10 | Entorno de Jest propio (`src/test/jsdom-environment.cjs`): jsdom con `Request`, `Response`, `Headers`, `AbortController` y `structuredClone` de Node, porque React Router 8 crea un `Request` en cada navegación. `FormData` y `Blob` quedan los de jsdom. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-10 | El CLI de shadcn agregó `next-themes` y un paquete npm ajeno llamado `cn`: se quitaron y los imports apuntan a `@/lib/utils`. Botones e inputs de 44 px de alto (`h-11`). | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-10 | Tras un logout se va a `/login` sin `next`; si la sesión expira, se conserva `next` con la ruta actual (`sessionStore` guarda el motivo). | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-10 | La confirmación de la contraseña nueva se valida con un *resolver* que envuelve `zodResolver(ChangePasswordInput)`, en lugar de una regla `validate`: mismo mensaje y sin llamar a la API. Los mensajes de Zod de los formularios se traducen con `spanishErrors`. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-10 | `onScan(result, { source })`: el segundo argumento (`camera`, `hid` o `manual`) alimenta la columna "Origen" de `/dev/scanner`. Tras una lectura de cámara el foco no vuelve al campo, porque en el celular abriría el teclado; tras tecleo o lector sí. Una lectura inválida de la cámara deja el visor abierto con "Código no reconocido". `cameraAvailable()` vive en `CameraViewer.tsx` para quedar cubierta por tests. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-10 | `@page { size: 80mm auto }` y `58mm auto` (§4, T30) no son CSS válido: el navegador los ignora y usa el papel del driver. Se mantienen como dice la spec; `PrintLayout` fija el ancho del contenido (72 y 48 mm) y el README indica elegir el rollo en el driver. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-10 | `theme_color` y `background_color` = `#ffffff` (`--background` de shadcn, igual que el header). Íconos: `public/icons/icon.svg` (caja) y PNG generados con `pnpm dlx @vite-pwa/assets-generator` y una configuración de un solo uso fuera del repo (fondo `#171717` en *maskable* y Apple). | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-10 | T23 vive en `date.test.ts`, como dice §10: renderiza `Money` con `createElement`. Se agrega `formatTime` (hora de `/dev/scanner`). | Propuesta del agente; aprobada por el usuario (2026-10-12) |
 | 2026-10-10 | Q1: se agrega `workbox-window` como devDependency de `apps/web`. Es peer dependency obligatoria de `vite-plugin-pwa`, y sin ella `virtual:pwa-register` no se resuelve con pnpm y `pnpm build` falla. | Usuario (chat), durante la implementación (TODO 11) |
+| 2026-10-12 | Volumen del beep de lectura (`feedback.ts`) de 0,05 a 0,5: en iPhone se oía bajo y, sin vibración en iOS, el beep es la única señal de lectura. | Usuario (chat), durante la verificación manual (CA7) |
+| 2026-10-12 | El lector HID escribe según el idioma de teclado configurado en el propio lector; si no coincide con el de Windows, los guiones del SKU llegan cambiados y la lectura queda como "Código no reconocido". Se resuelve configurando el idioma del lector (código de configuración del manual), sin cambios en la app. | Usuario (chat), durante la verificación manual (CA8) |
+| 2026-10-12 | F3 cumple la Definition of Done y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |
