@@ -1,7 +1,7 @@
 ---
 id: fase-04
 titulo: Usuarios y permisos
-estado: LISTA
+estado: COMPLETA
 depende_de: [fase-03]
 autoriza_codigo_en:
   - "apps/api/package.json"
@@ -10,6 +10,7 @@ autoriza_codigo_en:
   - "apps/api/src/core/errors.test.ts"
   - "apps/api/src/core/password.ts"
   - "apps/api/src/core/password.test.ts"
+  - "apps/api/jest.config.cjs"
   - "apps/api/src/modules/users/**"
   - "apps/api/src/scripts/**"
   - "apps/api/src/app.ts"
@@ -21,6 +22,11 @@ autoriza_codigo_en:
   - "packages/shared/src/errors.ts"
   - "packages/shared/src/errors.test.ts"
   - "apps/web/src/features/users/**"
+  - "apps/web/src/shared/ui/checkbox.tsx"
+  - "apps/web/src/shared/ui/select.tsx"
+  - "apps/web/src/shared/ui/radio-group.tsx"
+  - "apps/web/src/test/setup.ts"
+  - "apps/web/jest.config.cjs"
   - "apps/web/src/app/routes.tsx"
   - "README.md"
   - "docs/plan/plan.md"
@@ -34,9 +40,9 @@ fuera_de_alcance:
   - "Bloqueo de cuentas por intentos fallidos más allá del rate limit de F2"
   - "Cambios a schema.prisma o migraciones (el modelo es de F1; si hiciera falta, se pregunta)"
 tests_requeridos_total: 33
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 33
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/api/src/modules/users/**, apps/web/src/features/users/** y packages/shared (se mantiene)"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -315,43 +321,43 @@ En escritorio, `DataTable` con columnas Nombre, Usuario, Rol, Sucursales, Estado
 
 ## 9. TODOs (en orden, verificables)
 
-- [ ] **1. Contratos.**
+- [x] **1. Contratos.**
   - Crear `shared/users.ts` (esquemas, DTOs y reglas puras) y ampliar `ErrorCode`. Agregar los 4 códigos a `ERROR_HTTP_STATUS` y `ERROR_MESSAGES` de la API. Tests **T1–T6** (y T3 de F2 sigue en verde con los códigos nuevos).
   - *Verificable:* T1–T6 en verde.
-- [ ] **2. Generador de contraseñas.**
+- [x] **2. Generador de contraseñas.**
   - `generateReadablePassword()` en `core/password.ts`. Test **T7**.
   - *Verificable:* T7 en verde.
-- [ ] **3. Lectura.**
+- [x] **3. Lectura.**
   - `users.repository.ts`, `users.service.ts` (lectura), `GET /users`, `GET /users/:id`, `GET /roles` y `GET /permissions`; registrar las rutas en `app.ts`; helpers de test para crear usuarios e iniciar sesión. Tests **T8**, **T9** y **T22**.
   - *Verificable:* T8, T9 y T22 en verde.
-- [ ] **4. Alta y username sugerido.**
+- [x] **4. Alta y username sugerido.**
   - `POST /users` y `GET /users/suggest-username`. Tests **T10–T13** y **T21**.
   - *Verificable:* T10–T13 y T21 en verde.
-- [ ] **5. Edición.**
+- [x] **5. Edición.**
   - `PATCH /users/:id` con normalización de extras. Tests **T14**, **T15** y **T20**.
   - *Verificable:* T14, T15 y T20 en verde.
-- [ ] **6. Protecciones.**
+- [x] **6. Protecciones.**
   - Reglas del Propietario y de uno mismo en todas las mutaciones. Tests **T16–T17**.
   - *Verificable:* T16–T17 en verde.
-- [ ] **7. Estado y contraseña.**
+- [x] **7. Estado y contraseña.**
   - `deactivate`, `reactivate` y `reset-password`, con revocación de sesiones. Tests **T18–T19**.
   - *Verificable:* T18–T19 en verde.
-- [ ] **8. Audit.**
+- [x] **8. Audit.**
   - Registrar las acciones de §3. Test **T23**.
   - *Verificable:* T23 en verde.
-- [ ] **9. Comando del Propietario.**
+- [x] **9. Comando del Propietario.**
   - `ownerReset.ts`, `scripts/owner-reset-password.ts` y los scripts en `apps/api` y la raíz. Test **T24**.
   - *Verificable:* T24 en verde y `pnpm owner:reset-password` funciona sobre la BD de desarrollo.
-- [ ] **10. UI: lista.**
+- [x] **10. UI: lista.**
   - Hooks de datos, `UsersListPage` y rutas. Test **T25**.
   - *Verificable:* T25 en verde.
-- [ ] **11. UI: formulario.**
+- [x] **11. UI: formulario.**
   - `UserFormPage` (alta y edición), selector de rol, sucursales, `PermissionMatrix` y modo de contraseña. Tests **T26** y **T28–T31**.
   - *Verificable:* T26 y T28–T31 en verde.
-- [ ] **12. UI: credenciales y acciones.**
+- [x] **12. UI: credenciales y acciones.**
   - `CredentialsDialog`, acciones de desactivar/reactivar/restablecer y manejo de errores. Tests **T27**, **T32** y **T33**.
   - *Verificable:* T27, T32 y T33 en verde.
-- [ ] **13. README y cierre.**
+- [x] **13. README y cierre.**
   - En el README: gestión de usuarios, el rol Propietario y `pnpm owner:reset-password`.
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; hacer las verificaciones manuales; registrar la cobertura; llenar §12 Evidencia y aplicar la Definition of Done (constitución §4).
 
@@ -422,6 +428,26 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 
 *(Se completa al cerrar la fase.)*
 
+**Cierre 2026-10-12 (agente, Windows 11 + Node 24.20.0 + pnpm 12.9.1 + Docker 29.8.0):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` (con `pnpm dev:db`) | Los cuatro con código 0, incluidos los tests de F0–F3 (CA9). |
+| Tests | 33/33 requeridos en verde. `shared`: 241 casos en 12 suites. `api`: 349 en 53 suites (8 archivos `users-*.int.test.ts` + T7 en `password.test.ts`). `web`: 201 en 26 suites (5 de `features/users`). Sin `skip`/`only`/`todo`/`xit`. |
+| Cobertura (umbral por carpeta 80 %, ahora fijo en los `jest.config.cjs`) | `apps/api/src/modules/users/**` 99,62 % líneas · 92,85 % ramas; `apps/web/src/features/users/**` 93,83 % · 86,87 %; `packages/shared` 100 % · 98,48 % (`users.ts` 100 % · 100 %) (CA10). |
+| Build | `apps/api/dist/modules/users/` y `apps/api/dist/scripts/owner-reset-password.js`; la web genera `manifest.webmanifest` y `sw.js`. |
+| Alcance (constitución §4.6) | Todos los archivos cambiados están en `autoriza_codigo_en`; `apps/web/package.json` y `pnpm-lock.yaml` sin cambios (sin dependencias nuevas). |
+
+**Cierre 2026-10-12 (usuario, Eliu Castillo):** verifica CA1, CA7 y CA8, aprueba las propuestas del agente y confirma el cierre (constitución §4.9).
+
+### Verificación manual (usuario, 2026-10-12)
+
+| CA | Resultado |
+|---|---|
+| CA1 | OK: un usuario creado inicia sesión, se le pide cambiar la contraseña y solo ve los módulos permitidos |
+| CA7 | OK: `pnpm owner:reset-password` sobre la BD de desarrollo |
+| CA8 | OK: gestión de usuarios en móvil y escritorio |
+
 ---
 
 ## 13. Registro de decisiones
@@ -443,3 +469,14 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | 2026-10-03 | Los extras que ya da el rol no se guardan. `OWNER` no aparece en el selector de roles. La lista no se filtra por la sucursal del actor en el MVP. | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
 | 2026-10-03 | El catálogo pasa a 25 permisos (`inventory.other_branches.read`) y el seed crea `S2`; cambian §3 (alcance), el caso borde 3, T22 y la nota de fuera de alcance sobre el filtro por sucursal. | Usuario (chat), durante la revisión de F6; F1 §6.4 y §7.2 actualizados |
+| 2026-10-12 | Paso 8 del orden de validación: `BRANCH_FORBIDDEN` aplica a las sucursales **activas** que el actor no tiene en sus claims; una sucursal inexistente o inactiva sigue al paso 9 (400 `VALIDATION_ERROR` en `branchIds`). Así se cumplen T12 (sucursal inactiva → 400) y T13 (sucursal fuera de los claims → 403) a la vez. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | "Uno mismo" y extras: un campo de acceso (`roleId`, `extraPermissions`, `branchIds`, `defaultBranchId`) cuenta como cambio si viene en el `PATCH`, aunque sea igual al actual; la UI solo envía los campos que cambiaron. Los permisos y sucursales del actor salen de sus claims (como en F2). `reactivate` no revoca sesiones (solo `deactivate` y `reset-password`) y tampoco se permite sobre uno mismo. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | Username duplicado: el módulo lo comprueba antes de insertar y, si una carrera llega a P2002, responde igual: 409 `CONFLICT` con `message` "Este usuario ya existe." y `details.target: ['username']` (el `errorHandler` de F2 pondría el nombre del índice y está fuera del perímetro). Un `PATCH` sin cambios reales responde 200 sin escribir ni auditar. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | Audit `user.update`: `payload` = `{ <campo>: { from, to } }` solo con los campos que cambiaron, con los nombres de `UserUpdateInput` (`roleId` y sucursales como ids); si al cambiar de rol se descartan extras, `extraPermissions` también aparece. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | `GET /permissions` se arma con el catálogo de `shared` (`PERMISSIONS`), no con la tabla; `GET /roles` devuelve los permisos de cada rol en orden alfabético (como los claims). `resetOwnerPassword(prisma)` devuelve la contraseña en claro; el script `owner:reset-password` de `apps/api` corre con `tsx --env-file-if-exists=../../.env` (igual que `dev`) y el de la raíz compila `shared` antes (igual que `db:seed`). | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | UI: al editar, las sucursales son las de `me.branches` más las que ya tiene el usuario; las que el actor no tiene se muestran bloqueadas, para que guardar no las quite. Las reglas de solo lectura viven en `features/users/userAccess.ts` y repiten las de la API (Propietario, uno mismo, alcance). | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | Tests: helpers `loginSeeded` y `createAndLogin` en `test/integration/helpers/auth.ts`, y `fullName`/`email` opcionales en `createUser`. En la web, los datos de prueba de usuarios viven en `features/users/testing.ts` (`src/test` está fuera del perímetro). Hay casos extra junto a los requeridos (orden, filtros, `defaultBranchId`, guardar solo lo cambiado). | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | UI: se agregan con el CLI de shadcn `checkbox`, `select` y `radio-group` en `apps/web/src/shared/ui/` (con `radix-ui`, ya instalado; objetivos táctiles de 44 px) y el formulario y la lista los usan en lugar de controles nativos. `CredentialsDialog` usa `Dialog` (no `ResponsiveDialog`) para quitar la ✕ y bloquear `Escape` y el clic fuera. | Usuario (chat), al revisar las propuestas del agente |
+| 2026-10-12 | Si un permiso pedido como extra está en el catálogo de `shared` pero no en la BD (código desplegado sin correr `pnpm db:seed`), la API responde 500 `INTERNAL_ERROR` con "Faltan permisos en la base de datos (…); ejecuta `pnpm db:seed`." y `details.permissions`, sin escribir, en lugar de ignorarlo. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | Cobertura permanente: `apps/api/jest.config.cjs` mide `src/modules/users/**` y `apps/web/jest.config.cjs` mide `src/features/users/**` (sin `testing.ts`), los dos con umbral de 80 % en líneas y ramas. El stub de `ResizeObserver` (jsdom no lo tiene; lo usan `Checkbox` y `RadioGroup` de Radix) va en `apps/web/src/test/setup.ts`. | Propuesta del agente; aprobada por el usuario (2026-10-12) |
+| 2026-10-12 | F4 cumple la Definition of Done y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |

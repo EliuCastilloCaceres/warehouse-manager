@@ -6,6 +6,8 @@ export const DEFAULT_PASSWORD = 'clave-de-prueba-1';
 
 export interface TestUserOptions {
   username: string;
+  fullName?: string;
+  email?: string | null;
   password?: string;
   role?: SystemRoleCode;
   /** Códigos de sucursal con acceso (requiere el seed base). */
@@ -20,6 +22,8 @@ export interface TestUserOptions {
 export async function createUser(prisma: PrismaClient, options: TestUserOptions) {
   const {
     username,
+    fullName = `Usuario ${username}`,
+    email = null,
     password = DEFAULT_PASSWORD,
     role = 'SELLER',
     branches = ['S1'],
@@ -36,7 +40,8 @@ export async function createUser(prisma: PrismaClient, options: TestUserOptions)
   return prisma.user.create({
     data: {
       username,
-      fullName: `Usuario ${username}`,
+      fullName,
+      email,
       passwordHash: await hashPassword(password),
       roleId: roleRow.id,
       mustChangePassword,

@@ -13,6 +13,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
+    "owner:reset-password": "tsx --env-file-if-exists=../../.env src/scripts/owner-reset-password.ts",
     "test": "prisma generate && node --experimental-vm-modules --no-warnings=ExperimentalWarning node_modules/jest/bin/jest.js --runInBand --coverage",
     "test:unit": "prisma generate && node --experimental-vm-modules --no-warnings=ExperimentalWarning node_modules/jest/bin/jest.js --selectProjects unit",
     "test:int": "prisma generate && node --experimental-vm-modules --no-warnings=ExperimentalWarning node_modules/jest/bin/jest.js --runInBand --selectProjects integration"

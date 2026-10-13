@@ -27,6 +27,11 @@ export const ErrorCode = z.enum([
   'RACK_INACTIVE',
   'INVENTORY_CROSS_WAREHOUSE',
   'INVENTORY_INVALID_OPERATION',
+  // F4
+  'USER_OWNER_PROTECTED',
+  'USER_OUT_OF_SCOPE',
+  'USER_SELF_CHANGE_FORBIDDEN',
+  'PERMISSION_ESCALATION',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;
 

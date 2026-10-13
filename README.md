@@ -89,6 +89,26 @@ Con `COOKIE_SECURE=true`, curl no reenvía la cookie por `http://`; para probar 
 
 La sesión sobrevive a recargar la página y se renueva sola. Cerrar sesión en una pestaña la cierra en las demás. El menú solo muestra los módulos que permite tu rol.
 
+### Usuarios y permisos
+
+Módulo **Usuarios** (permiso `users.read`; crear y editar exige `users.manage`):
+
+- **Lista:** busca por nombre, usuario o correo y filtra por estado (por defecto, solo activos), rol y sucursal. Toca un usuario para ver su ficha.
+- **Nuevo usuario:** al escribir el nombre se sugiere el usuario (`Juan Pérez` → `jperez`, o `jperez2` si ya existe); se puede cambiar antes de guardar y después ya no. Eliges rol, sucursales (con una predeterminada) y, si tienes `users.permissions`, permisos extra además de los del rol.
+- **Contraseña:** al crear o restablecer, la app la genera (12 caracteres legibles, p. ej. `k7mp-x3qa-9vtw`) o la escribes tú. La generada **se muestra una sola vez**: cópiala antes de tocar **Entendido**. En los dos casos se pedirá cambiarla al iniciar sesión.
+- **Desactivar** cierra todas las sesiones del usuario y le impide entrar; **Reactivar** lo devuelve. **Restablecer contraseña** también cierra sus sesiones. Los cambios de rol, sucursales o permisos se aplican en su siguiente renovación de sesión (como máximo 15 min).
+- **Límites:** nadie otorga un rol, permiso o sucursal que no tiene, ni modifica a alguien con permisos que él no tiene (por eso un Gerente no crea Administradores). Nadie cambia su propio rol, permisos, sucursales ni estado; en tu ficha solo editas nombre, correo y teléfono. Toda acción queda en el audit, nunca con contraseñas.
+
+**El Propietario** (`owner`) tiene siempre todos los permisos, es único y solo él modifica su cuenta: ni un Administrador puede editarlo, desactivarlo ni restablecer su contraseña, y el rol Propietario no se asigna desde la app.
+
+**Contraseña olvidada del Propietario:** en el servidor, con acceso a la BD:
+
+```bash
+pnpm owner:reset-password
+```
+
+Imprime una contraseña temporal (una sola vez), cierra todas sus sesiones y le pide cambiarla al entrar. Solo necesita `DATABASE_URL` (en desarrollo la toma de `.env`). Si no hay Propietario, avisa que primero corras `pnpm db:seed` y no cambia nada.
+
 ### Instalar la app (PWA)
 
 La app se instala desde el navegador, sin tienda. En `pnpm dev` el service worker no se activa; para probar la instalación usa la versión compilada, que también sirve por HTTPS con los certificados de mkcert y reenvía `/api` a la API:

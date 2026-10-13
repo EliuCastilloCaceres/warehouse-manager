@@ -1,4 +1,5 @@
-import { hashPassword, verifyPassword } from './password.js';
+import { PasswordPolicy } from '@warehouse-manager/shared';
+import { generateReadablePassword, hashPassword, verifyPassword } from './password.js';
 
 describe('contraseñas (T12)', () => {
   it('genera hashes argon2id que verifican solo con la contraseña correcta', async () => {
@@ -14,5 +15,21 @@ describe('contraseñas (T12)', () => {
   it('dos hashes de la misma contraseña son distintos (sal aleatoria)', async () => {
     const [a, b] = await Promise.all([hashPassword('misma'), hashPassword('misma')]);
     expect(a).not.toBe(b);
+  });
+});
+
+describe('generateReadablePassword (T7 de F4)', () => {
+  const FORMAT = /^[a-hj-km-np-z2-9]{4}(-[a-hj-km-np-z2-9]{4}){2}$/;
+
+  it('tiene el formato de 3 grupos sin caracteres ambiguos y cumple la política', () => {
+    const password = generateReadablePassword();
+    expect(password).toMatch(FORMAT);
+    expect(PasswordPolicy.safeParse(password).success).toBe(true);
+  });
+
+  it('1 000 llamadas no repiten valor', () => {
+    const values = Array.from({ length: 1000 }, generateReadablePassword);
+    for (const value of values) expect(value).toMatch(FORMAT);
+    expect(new Set(values).size).toBe(1000);
   });
 });

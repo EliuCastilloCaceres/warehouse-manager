@@ -28,6 +28,8 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
+import { rolesRoutes } from './modules/users/roles.routes.js';
+import { usersRoutes } from './modules/users/users.routes.js';
 
 export interface AppDeps {
   prisma?: PrismaClient;
@@ -86,6 +88,8 @@ export async function buildApp(config: AppConfig, deps: AppDeps = {}): Promise<F
       await api.register(healthRoutes);
       await api.register(authRoutes, { prefix: '/auth' });
       await api.register(uploadsRoutes, { prefix: '/uploads' });
+      await api.register(usersRoutes, { prefix: '/users' });
+      await api.register(rolesRoutes);
       await deps.registerExtra?.(api);
     },
     { prefix: '/api/v1' },

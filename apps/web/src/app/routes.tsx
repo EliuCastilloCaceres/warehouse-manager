@@ -12,10 +12,15 @@ import { BranchProvider } from '@/features/branch/BranchProvider';
 import { SelectBranchPage } from '@/features/branch/SelectBranchPage';
 import { ScannerTestPage } from '@/features/dev/ScannerTestPage';
 import { HomePage } from '@/features/home/HomePage';
+import { UserFormPage } from '@/features/users/UserFormPage';
+import { UsersListPage } from '@/features/users/UsersListPage';
 import { ComingSoonPage } from '@/shared/ComingSoonPage';
 import { NotFoundPage } from '@/shared/NotFoundPage';
 import { AppLayout } from './AppLayout';
 import { MODULES } from './modules';
+
+/** Módulos con pantallas propias; los demás siguen como "Próximamente". */
+const IMPLEMENTED = new Set(['/users']);
 
 /** Sesión y sucursal viven dentro del router para poder navegar. */
 function AppRoot() {
@@ -49,14 +54,40 @@ export const routes: RouteObject[] = [
                     element: <AppLayout />,
                     children: [
                       { index: true, element: <HomePage /> },
-                      ...MODULES.map(({ path, label, permissions }) => ({
-                        path,
+                      ...MODULES.filter(({ path }) => !IMPLEMENTED.has(path)).map(
+                        ({ path, label, permissions }) => ({
+                          path,
+                          element: (
+                            <RequirePermission anyOf={permissions}>
+                              <ComingSoonPage title={label} />
+                            </RequirePermission>
+                          ),
+                        }),
+                      ),
+                      {
+                        path: 'users',
                         element: (
-                          <RequirePermission anyOf={permissions}>
-                            <ComingSoonPage title={label} />
+                          <RequirePermission perm="users.read">
+                            <UsersListPage />
                           </RequirePermission>
                         ),
-                      })),
+                      },
+                      {
+                        path: 'users/new',
+                        element: (
+                          <RequirePermission perm="users.manage">
+                            <UserFormPage />
+                          </RequirePermission>
+                        ),
+                      },
+                      {
+                        path: 'users/:id',
+                        element: (
+                          <RequirePermission perm="users.read">
+                            <UserFormPage />
+                          </RequirePermission>
+                        ),
+                      },
                       { path: 'dev/scanner', element: <ScannerTestPage /> },
                       { path: '*', element: <NotFoundPage /> },
                     ],

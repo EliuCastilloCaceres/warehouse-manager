@@ -11,6 +11,12 @@ Object.assign(globalThis, { TextEncoder, TextDecoder, BroadcastChannel: FakeBroa
 installMatchMedia();
 
 // Radix (diálogos y hojas) y sonner (deslizar un toast) usan estas APIs que jsdom no implementa.
+// ResizeObserver: Checkbox y RadioGroup de Radix lo usan para medirse.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
 Object.assign(window.HTMLElement.prototype, {
   scrollIntoView: () => {},
   hasPointerCapture: () => false,

@@ -45,3 +45,15 @@ describe('códigos de F2 y ValidationIssue (T8 de F2)', () => {
     expect(ValidationIssue.safeParse({ path: 'username' }).success).toBe(false);
   });
 });
+
+describe('códigos de F4 (T6 de F4)', () => {
+  it('los 4 códigos nuevos existen', () => {
+    const nuevos = [
+      'USER_OWNER_PROTECTED',
+      'USER_OUT_OF_SCOPE',
+      'USER_SELF_CHANGE_FORBIDDEN',
+      'PERMISSION_ESCALATION',
+    ];
+    for (const code of nuevos) expect(ErrorCode.options).toContain(code);
+  });
+});
