@@ -13,7 +13,7 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   // F3: el adaptador de cámara (cameraScanner.ts) se verifica a mano (CA7).
-  // F4: users y F5: settings, sin sus datos de prueba (testing.ts); F5: shared/ticket.
+  // F4: users, F5: settings y F6: products, sin sus datos de prueba (testing.ts); F5: shared/ticket.
   collectCoverageFrom: [
     '<rootDir>/src/shared/api/**/*.ts',
     '<rootDir>/src/features/auth/**/*.{ts,tsx}',
@@ -25,6 +25,8 @@ module.exports = {
     '<rootDir>/src/features/settings/**/*.{ts,tsx}',
     '!<rootDir>/src/features/settings/testing.ts',
     '<rootDir>/src/shared/ticket/**/*.{ts,tsx}',
+    '<rootDir>/src/features/products/**/*.{ts,tsx}',
+    '!<rootDir>/src/features/products/testing.ts',
     '!<rootDir>/src/**/*.test.{ts,tsx}',
   ],
   coverageThreshold: {
@@ -36,5 +38,6 @@ module.exports = {
     './src/features/users/': { lines: 80, branches: 80 },
     './src/features/settings/': { lines: 80, branches: 80 },
     './src/shared/ticket/': { lines: 80, branches: 80 },
+    './src/features/products/': { lines: 80, branches: 80 },
   },
 };

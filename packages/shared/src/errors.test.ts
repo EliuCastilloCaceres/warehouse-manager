@@ -57,3 +57,19 @@ describe('códigos de F4 (T6 de F4)', () => {
     for (const code of nuevos) expect(ErrorCode.options).toContain(code);
   });
 });
+
+describe('códigos de F6 (T7 de F6)', () => {
+  it('los 7 códigos nuevos existen', () => {
+    const nuevos = [
+      'SKU_TAKEN',
+      'PRODUCT_HAS_HISTORY',
+      'VARIANT_HAS_HISTORY',
+      'PRODUCT_TYPE_LOCKED',
+      'PRODUCT_IMAGE_LIMIT',
+      'IMPORT_INVALID',
+      'IMPORT_CONFIRMATION_REQUIRED',
+    ];
+    expect(nuevos).toHaveLength(7);
+    for (const code of nuevos) expect(ErrorCode.options).toContain(code);
+  });
+});

@@ -12,6 +12,10 @@ import { BranchProvider } from '@/features/branch/BranchProvider';
 import { SelectBranchPage } from '@/features/branch/SelectBranchPage';
 import { ScannerTestPage } from '@/features/dev/ScannerTestPage';
 import { HomePage } from '@/features/home/HomePage';
+import { BulkImportPage } from '@/features/products/BulkImportPage';
+import { LabelsPage } from '@/features/products/LabelsPage';
+import { ProductFormPage } from '@/features/products/ProductFormPage';
+import { ProductsListPage } from '@/features/products/ProductsListPage';
 import { BranchSettingsForm } from '@/features/settings/BranchSettingsForm';
 import { CashRegistersTab } from '@/features/settings/CashRegistersTab';
 import { SettingsIndex, SettingsPage } from '@/features/settings/SettingsPage';
@@ -23,7 +27,7 @@ import { AppLayout } from './AppLayout';
 import { MODULES } from './modules';
 
 /** Módulos con pantallas propias; los demás siguen como "Próximamente". */
-const IMPLEMENTED = new Set(['/users', '/settings']);
+const IMPLEMENTED = new Set(['/users', '/settings', '/products']);
 
 /** Sesión y sucursal viven dentro del router para poder navegar. */
 function AppRoot() {
@@ -67,6 +71,46 @@ export const routes: RouteObject[] = [
                           ),
                         }),
                       ),
+                      {
+                        path: 'products',
+                        element: (
+                          <RequirePermission perm="products.read">
+                            <ProductsListPage />
+                          </RequirePermission>
+                        ),
+                      },
+                      {
+                        path: 'products/new',
+                        element: (
+                          <RequirePermission perm="products.manage">
+                            <ProductFormPage />
+                          </RequirePermission>
+                        ),
+                      },
+                      {
+                        path: 'products/import',
+                        element: (
+                          <RequirePermission perm="products.import">
+                            <BulkImportPage />
+                          </RequirePermission>
+                        ),
+                      },
+                      {
+                        path: 'products/labels',
+                        element: (
+                          <RequirePermission perm="products.labels">
+                            <LabelsPage />
+                          </RequirePermission>
+                        ),
+                      },
+                      {
+                        path: 'products/:id',
+                        element: (
+                          <RequirePermission perm="products.read">
+                            <ProductFormPage />
+                          </RequirePermission>
+                        ),
+                      },
                       {
                         path: 'settings',
                         element: (

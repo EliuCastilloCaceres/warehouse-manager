@@ -140,6 +140,42 @@ Módulo **Ajustes**. La pestaña **Sucursal** exige `settings.branch` y la pesta
 - **Descripción del QR:** se imprime debajo del QR (por ejemplo, "Muestra este QR en tu próxima compra").
 - Con solo la descripción se imprime como mensaje, sin QR; sin ninguno de los dos, no se imprime nada.
 
+### Productos
+
+Módulo **Productos** (`products.read`; crear y editar exige `products.manage`).
+
+- **Buscar:** escanea un código (SKU de variante, código de barras o SKU padre) para abrir el producto, o busca por SKU, nombre o marca y filtra por estado, tipo y categoría.
+- **Alta y edición:**
+  - Un producto **simple** tiene una sola variante con su mismo SKU y, opcionalmente, código de barras.
+  - Uno **con variantes** se arma con el generador: escribe tallas, colores o materiales y toca **Generar combinaciones**. Se crean las que falten, con el SKU sugerido (`ZAP0101` + 25.5 + Negro → `ZAP0101-255-NEG`); el SKU se puede editar.
+  - La categoría (`Calzado > Dama`, hasta 3 niveles) y la marca se escriben o se eligen; si no existen, se crean al guardar.
+  - Los precios se capturan en pesos. Un precio de variante vacío usa el del producto.
+- **Historial:** un producto o variante con movimientos o ventas no se borra ni cambia de tipo; se **desactiva**. Sin historial, **Eliminar** lo borra.
+- **Imágenes:** hasta 10 por producto, con **Tomar foto** (cámara del celular) o **Subir archivo**. La primera es la principal; se reordenan con ↑↓ y se pueden asignar a una variante (la variante usa sus imágenes; si no tiene, las del producto).
+
+**Carga masiva** (`/products/import`, permiso `products.import`, solo en computadora):
+
+1. **Descargar plantilla**: hojas `Productos` (los 15 encabezados), `Instrucciones`, `Categorías` y `Marcas`.
+2. Llena una fila por variante (las filas con el mismo `sku_padre` forman un producto) e **Importar .xlsx** (hasta 5 MB y 2 000 filas). También puedes pegar desde Excel en el editor. **Duplicar fila** copia la fila seleccionada justo debajo, sin `sku_variante`, para capturar rápido las variantes de un producto.
+3. Las celdas con error se marcan en rojo al momento. **Validar en servidor** revisa además SKUs tomados, ubicaciones, permisos y capacidad, y muestra el resumen.
+4. **Aplicar** se habilita solo tras validar sin errores. Se aplica todo o nada.
+
+Reglas de la carga:
+
+- Al actualizar, una celda vacía no cambia el valor y `-` borra un opcional (`costo`, `categoría`, `marca`, `talla`, `color`, `material`, `precio_variante`).
+- **Existencia:** suma unidades. Si la variante ya tenía stock, hay que confirmarlo en el resumen. Exige también `inventory.putaway`.
+- **Ubicación:** vacía = staging del almacén. Exceder la capacidad de un rack exige `inventory.override_capacity` y marcar "Permitir exceder capacidad".
+
+**Etiquetas** (`/products/labels`, permiso `products.labels`): agrega variantes escaneando o buscando, indica la cantidad de cada una, elige el formato y **Imprimir**.
+
+| Formato         | Contenido                                                                          | Impresora        |
+| --------------- | ---------------------------------------------------------------------------------- | ---------------- |
+| 50×25 mm        | QR del SKU, nombre, variante, SKU y precio opcional (sin imagen)                   | Ribetec RT-420ME |
+| 4×6"            | Imagen, nombre, variante, precio opcional y código de barras grande                | Ribetec RT-420ME |
+| Hoja A4 o Carta | 24 por hoja (3×8) con imagen, nombre, variante, precio opcional y código de barras | Impresora normal |
+
+En el diálogo de impresión: márgenes "Ninguno" y escala 100 % (ver [Impresión](#impresión-tickets-y-etiquetas)).
+
 ### Prueba de escáner e impresión (`/dev/scanner`)
 
 Menú de usuario → **Probar escáner**. Sirve para verificar en la tienda la cámara, el lector y la impresora de etiquetas:

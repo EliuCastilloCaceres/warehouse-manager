@@ -27,6 +27,10 @@ import './core/types.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { productImagesRoutes } from './modules/products/images.routes.js';
+import { productImportRoutes } from './modules/products/import.routes.js';
+import { productLabelsRoutes } from './modules/products/labels.routes.js';
+import { productsRoutes } from './modules/products/products.routes.js';
 import { branchesRoutes } from './modules/settings/branches.routes.js';
 import { cashRegistersRoutes } from './modules/settings/cashRegisters.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
@@ -94,6 +98,10 @@ export async function buildApp(config: AppConfig, deps: AppDeps = {}): Promise<F
       await api.register(rolesRoutes);
       await api.register(branchesRoutes, { prefix: '/branches' });
       await api.register(cashRegistersRoutes, { prefix: '/cash-registers' });
+      await api.register(productsRoutes, { prefix: '/products' });
+      await api.register(productImagesRoutes, { prefix: '/products' });
+      await api.register(productLabelsRoutes, { prefix: '/products' });
+      await api.register(productImportRoutes, { prefix: '/products' });
       await deps.registerExtra?.(api);
     },
     { prefix: '/api/v1' },

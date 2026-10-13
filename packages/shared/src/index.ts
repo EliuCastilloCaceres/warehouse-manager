@@ -6,6 +6,8 @@ export * from './locationCode.js';
 export * from './money.js';
 export * from './pagination.js';
 export * from './permissions.js';
+export * from './productImport.js';
+export * from './products.js';
 export * from './scanClassifier.js';
 export * from './sku.js';
 export * from './dto/index.js';

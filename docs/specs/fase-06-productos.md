@@ -1,7 +1,7 @@
 ---
 id: fase-06
 titulo: Productos
-estado: LISTA
+estado: COMPLETA
 depende_de: [fase-04]
 autoriza_codigo_en:
   - "apps/api/package.json"
@@ -24,6 +24,8 @@ autoriza_codigo_en:
   - "packages/shared/src/errors.test.ts"
   - "apps/web/src/features/products/**"
   - "apps/web/src/app/routes.tsx"
+  - "apps/api/jest.config.cjs"
+  - "apps/web/jest.config.cjs"
   - "README.md"
   - "docs/plan/plan.md"
 fuera_de_alcance:
@@ -37,9 +39,9 @@ fuera_de_alcance:
   - "Reservas, venta y lectura de stock por ubicación (F7/F8)"
   - "Cambios a schema.prisma o migraciones (el modelo es de F1; si hiciera falta, se pregunta)"
 tests_requeridos_total: 35
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 35
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/api/src/modules/products/**, apps/web/src/features/products/** y packages/shared (se mantiene)"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -106,7 +108,7 @@ Sin cambios de schema. Usa `Category`, `Brand`, `Product`, `ProductVariant`, `Pr
 | Celdas | Al **crear**, los campos obligatorios deben venir. Al **actualizar**, una celda vacía no cambia el valor y `-` borra un valor opcional (`costo`, `categoría`, `marca`, `talla`, `color`, `material`, `precio_variante`); `-` en un campo obligatorio es error. |
 | Filas de un mismo producto | Las filas con el mismo `sku_padre` forman un producto. Sus columnas de producto (`nombre`, `categoría`, `marca`, `tipo`, `precio`, `costo`, `activo`) no vacías deben coincidir; si una fila contradice a otra anterior → error en esa celda. Un `simple` tiene una sola fila. |
 | Límites | `.xlsx` de hasta 5 MiB y 2 000 filas de datos; etiquetas: hasta 1 000 por solicitud. |
-| Editor masivo | `react-data-grid` (MIT). AG Grid Community no incluye el portapapeles por rangos, así que el pegado se implementa con un manejador propio: el texto del portapapeles (TSV de Excel) se reparte desde la celda seleccionada y agrega filas si hace falta. Solo en escritorio (≥ `md`); en móvil: "Usa una computadora para la carga masiva". |
+| Editor masivo | `react-data-grid` (MIT). AG Grid Community no incluye el portapapeles por rangos, así que el pegado se implementa con un manejador propio: el texto del portapapeles (TSV de Excel) se reparte desde la celda seleccionada y agrega filas si hace falta. "Duplicar fila" copia la fila de la celda seleccionada (o la última) justo debajo, con `sku_variante` vacío, y selecciona la copia. Solo en escritorio (≥ `md`); en móvil: "Usa una computadora para la carga masiva". |
 | "Aplicar" | Habilitado solo después de "Validar en servidor" sin errores y sin ediciones posteriores. Muestra el resumen y, si aplica, las casillas "Confirmo sumar N unidades a M variantes que ya tienen stock" y "Permitir exceder capacidad" (esta solo con `inventory.override_capacity`). |
 | SKU sugerido | `suggestVariantSku(parentSku, { size, color, material })` en `shared/sku.ts`: `{PADRE}[-{TALLA}][-{COLOR3}][-{MATERIAL3}]`. Talla: mayúsculas, solo `[A-Z0-9]` (`25.5` → `255`). Color y material: sin acentos, mayúsculas, primeras 3 letras (`Café` → `CAF`). Sin atributos o con más de 40 caracteres → `null` (el usuario lo escribe). |
 | Etiquetas | `POST /products/labels` devuelve los datos; el dibujo es del cliente. Formatos: **50×25 mm** sin imagen, con nombre, variante, precio opcional y **QR del SKU** (`QrCode` de F3, sin prefijo: `classifyScan` lo lee como producto) más el SKU en texto; **4×6"** con imagen, nombre, variante, precio opcional y **Code128** grande (`Barcode` de F3); **hoja A4 o Carta de 3×8** (24 por hoja) con imagen pequeña, nombre, variante, precio opcional y Code128. Cada variante se repite según su cantidad. |
@@ -368,7 +370,7 @@ Un escaneo de ubicación o de promoción muestra "Este código es de una ubicaci
 **Carga masiva (`/products/import`, solo escritorio)**
 
 ```
- [Descargar plantilla] [Importar .xlsx] [+ Fila]       [Validar en servidor] [Aplicar]
+ [Descargar plantilla] [Importar .xlsx] [+ Fila] [Duplicar fila]   [Validar en servidor] [Aplicar]
  ┌────┬─────────┬──────────────┬──────────┬───────┬─────────┬────┬──────┬────────┐
  │ #  │sku_padre│ nombre       │categoría │ tipo  │ precio  │ …  │exist.│ubicación│
  │ 2  │ZAP0101  │Zapato de piel│Calzado > │variable│ 899.00 │    │ 5    │A-01-03 │
@@ -425,34 +427,34 @@ Un escaneo de ubicación o de promoción muestra "Este código es de una ubicaci
 
 ## 9. TODOs (en orden, verificables)
 
-- [ ] **1. Contratos.**
+- [x] **1. Contratos.**
   - `suggestVariantSku` en `sku.ts`, `products.ts`, `productImport.ts` y los códigos de error (también en `ERROR_HTTP_STATUS` y `ERROR_MESSAGES` de la API). Tests **T1–T7**.
   - *Verificable:* T1–T7 en verde (incluida la medición de 500 filas).
-- [ ] **2. API: catálogo.**
+- [x] **2. API: catálogo.**
   - `products.repository.ts`, `catalogs.ts`, `products.service.ts` y `products.routes.ts` (lista, catálogos, detalle, alta, edición, desactivar, borrar); registrar en `app.ts`. Tests **T8–T15**.
   - *Verificable:* T8–T15 en verde.
-- [ ] **3. API: imágenes y lookup.**
+- [x] **3. API: imágenes y lookup.**
   - `images.routes.ts` y `GET /lookup`. Tests **T16–T17**.
   - *Verificable:* T16–T17 en verde.
-- [ ] **4. API: carga masiva.**
+- [x] **4. API: carga masiva.**
   - Instalar `exceljs`; `xlsx.ts`, `import.service.ts` e `import.routes.ts`. Tests **T18–T25**.
   - *Verificable:* T18–T25 en verde.
-- [ ] **5. API: etiquetas.**
+- [x] **5. API: etiquetas.**
   - `labels.routes.ts`. Test **T26**.
   - *Verificable:* T26 en verde.
-- [ ] **6. UI: lista y escaneo.**
+- [x] **6. UI: lista y escaneo.**
   - `ProductsListPage`, hooks y rutas. Test **T27**.
   - *Verificable:* T27 en verde.
-- [ ] **7. UI: formulario.**
+- [x] **7. UI: formulario.**
   - `ProductFormPage`, `VariantMatrixGenerator`, tabla de variantes y `ProductGallery`. Tests **T28–T30**.
   - *Verificable:* T28–T30 en verde.
-- [ ] **8. UI: carga masiva.**
+- [x] **8. UI: carga masiva.**
   - Instalar `react-data-grid`; `BulkImportPage`, pegado TSV, validación en vivo, importar, validar y aplicar. Tests **T31–T33**.
   - *Verificable:* T31–T33 en verde.
-- [ ] **9. UI: etiquetas.**
+- [x] **9. UI: etiquetas.**
   - `LabelsPage` y las 3 plantillas. Tests **T34–T35**.
   - *Verificable:* T34–T35 en verde, y la vista previa de impresión del navegador muestra cada formato.
-- [ ] **10. README y cierre.**
+- [x] **10. README y cierre.**
   - En el README: alta de productos, plantilla y reglas de la carga masiva, y formatos de etiqueta.
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; hacer las verificaciones manuales (§11); registrar la cobertura; llenar §12 Evidencia y aplicar la Definition of Done (constitución §4).
 
@@ -523,6 +525,24 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 
 *(Se completa al cerrar la fase.)*
 
+**Cierre 2026-10-13 (agente, Windows 11 + Node 24.20.0 + pnpm 12.9.1 + Docker 29.8.0):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` (con `pnpm dev:db`) | Los cuatro con código 0, incluidos los tests de F0–F5 (CA7). `pnpm build` solo avisa que el bundle web pasa de 500 kB (observación de §13). |
+| Tests | 35/35 requeridos en verde. `shared`: 325 casos en 15 suites. `api`: 440 en 62 suites (`products-crud`, `products-read`, `products-images`, `products-lookup`, `products-labels` y `products-import`). `web`: 306 en 41 suites. Sin `skip`/`only`/`todo`/`xit`. |
+| Cobertura (umbral por carpeta 80 %, fijo en los `jest.config.cjs`) | `apps/api/src/modules/products/**` 97,42 % líneas · 87,09 % ramas; `apps/web/src/features/products/**` 93,56 % · 84,14 %; `packages/shared` 99,19 % · 93,27 % (CA8). |
+| Alcance (constitución §4.6) | Código solo en `autoriza_codigo_en`. Dependencias nuevas solo las de §4: `exceljs` (api) y `react-data-grid` (web). Además cambia `docs/specs/fase-08-pos.md` (CA6 y §13) por la decisión del usuario de mover allí la verificación de CA6. |
+
+**Cierre 2026-10-13 (usuario, Eliu Castillo):** verifica CA4 en el celular y en la computadora, mueve CA6 a la visita a la sucursal antes de cerrar F8, aprueba las propuestas del agente y confirma el cierre (constitución §4.9).
+
+### Verificación manual (usuario, 2026-10-13)
+
+| CA | Resultado |
+|---|---|
+| CA4 | OK en el celular y en la computadora: productos con variantes, imágenes y desactivación. |
+| CA6 | Pendiente: las etiquetas de la Ribetec RT-420ME (50×25 con QR y 4×6 con Code128) y en hoja A4 o Carta se leen con la cámara del sistema y con el lector en la visita a la sucursal, antes de cerrar F8 (F8 CA6). |
+
 ---
 
 ## 13. Registro de decisiones
@@ -545,3 +565,17 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | 2026-10-03 | Stock mostrado por sucursal actual (`branchScoped`); el lookup devuelve también inactivos con sus banderas. | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | Audit solo de `product.import` y `product.delete`. 7 códigos de error nuevos. | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
+| 2026-10-13 | API: las rutas que responden `ProductDetailDto` (`POST`, `PUT`, desactivar y reactivar, además de las `GET` de la spec) también son `branchScoped`, para devolver el stock de la sucursal actual. Las variantes se devuelven ordenadas por SKU (agrupa la matriz por talla y color). | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | `productImport.ts` separa la lectura de las reglas: `interpretImportRows` (celdas y filas), `typeIssues`, `creationIssues`, `newVariantIssues` y `looksNew`; la API las reutiliza con lo que sabe de la BD. En el navegador, un producto se trata como nuevo si alguna de sus filas trae nombre, tipo o precio. Reglas agregadas: un `simple` no lleva talla, color ni material; un `sku_variante` no puede ser el SKU padre de otro producto del archivo; una celda inválida no repite el error de "obligatorio". | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Carga masiva en la API: cambiar el tipo de un producto existente sin historial reemplaza sus variantes (con historial → error en `tipo`). Una fila de un `variable` necesita `sku_variante` también para actualizar columnas de producto. Las combinaciones repetidas (sin mayúsculas) se revisan contra las variantes existentes. "Variantes que ya tienen stock" = con existencia en el almacén de la sucursal. `parse` acepta los encabezados en cualquier orden (sin mayúsculas ni acentos), detecta el `.xlsx` por tipo MIME o extensión (si no → 415) y lee fechas como `aaaa-mm-dd`. `validate` y `commit` aceptan cuerpos de hasta 10 MiB (el límite por defecto de 1 MiB no alcanza para 2 000 filas); `commit` usa una transacción de hasta 120 s. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | UI de lista y etiquetas: el escaneo (`ScanInput`, lleva al producto con `lookup`) y la búsqueda por texto (`q`) son dos campos distintos. En etiquetas, escanear un SKU padre agrega todas sus variantes activas, y la búsqueda elige un producto y luego sus variantes. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | UI de formulario: estado propio validado con `ProductUpsertInput` al guardar; categoría y marca con `<datalist>` de `GET /catalogs`; `ChipsInput` para etiquetas y atributos; la casilla "Activa" de una variante guardada llama a la API al momento; ante `VARIANT_HAS_HISTORY` se ofrece "Desactivar variante" y la fila vuelve a la tabla; la galería aparece al guardar el producto. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Editor masivo: el pegado TSV parte de la celda activa (`onActivePositionChange` de `react-data-grid`); las filas se numeran por su posición en el editor (como en Excel); editores con `<datalist>` en `categoría` y `marca`; virtualización solo con más de 100 filas; marcar "Permitir exceder capacidad" obliga a validar otra vez; los errores se listan debajo del grid. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Impresión de etiquetas: en 50×25 mm y 4×6" cada copia va en su propio `PrintLayout` (una página por etiqueta); las hojas A4 o Carta van juntas, de 3×8 con márgenes de 8 mm. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Tests: helpers `variableInput`, `simpleInput`, `receiveStock` e `imageUrls` en `test/integration/helpers/products.ts`; datos de prueba web en `features/products/testing.ts`; se reutilizan `choose` y `useDebouncedValue` de `features/users`. En jsdom, los tests del editor masivo traducen el selector anidado `&` de `react-data-grid` a `:scope`, y los de etiquetas simulan el canvas que usa `JsBarcode`. Hay tests extra junto a los 35 requeridos. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Observación (sin cambio en F6): el bundle web es un solo archivo de 1,68 MB (476 KB comprimido). Se propone cargar las pantallas por ruta (`React.lazy`) en una fase futura. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Cobertura permanente: `apps/api/jest.config.cjs` mide `src/modules/products/**` y `apps/web/jest.config.cjs` mide `src/features/products/**` (sin `testing.ts`), con umbral de 80 % en líneas y ramas. | Usuario (chat) |
+| 2026-10-13 | Formulario en el celular: debajo de `md` las variantes se muestran como tarjetas con los campos apilados (la tabla ensanchaba la pantalla); desde `md`, tabla. "Generar combinaciones" avisa cuántas variantes agregó (o que no hay combinaciones nuevas) con un aviso y un mensaje junto al botón, y recuerda escribir el SKU del producto si falta. | Usuario (chat) |
+| 2026-10-13 | Carga masiva: botón "Duplicar fila" junto a "+ Fila". Copia la fila de la celda seleccionada (o la última, si no hay selección) justo debajo, con `sku_variante` vacío porque debe ser único, y mueve la selección a la copia. Sin atajo de teclado. | Usuario (chat) |
+| 2026-10-13 | La lectura de las etiquetas impresas (CA6) se verifica en la sucursal antes de cerrar F8, junto con F8 CA6. F6 puede cerrarse sin CA6. | Usuario (chat); F8 §11 y §13 actualizados |
+| 2026-10-13 | F6 cumple la Definition of Done (con CA6 movido a F8 por decisión del usuario) y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |

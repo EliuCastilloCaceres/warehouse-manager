@@ -32,6 +32,14 @@ export const ErrorCode = z.enum([
   'USER_OUT_OF_SCOPE',
   'USER_SELF_CHANGE_FORBIDDEN',
   'PERMISSION_ESCALATION',
+  // F6
+  'SKU_TAKEN',
+  'PRODUCT_HAS_HISTORY',
+  'VARIANT_HAS_HISTORY',
+  'PRODUCT_TYPE_LOCKED',
+  'PRODUCT_IMAGE_LIMIT',
+  'IMPORT_INVALID',
+  'IMPORT_CONFIRMATION_REQUIRED',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;
 
