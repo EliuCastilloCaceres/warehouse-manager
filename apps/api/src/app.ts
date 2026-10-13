@@ -27,6 +27,8 @@ import './core/types.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { branchesRoutes } from './modules/settings/branches.routes.js';
+import { cashRegistersRoutes } from './modules/settings/cashRegisters.routes.js';
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { rolesRoutes } from './modules/users/roles.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
@@ -90,6 +92,8 @@ export async function buildApp(config: AppConfig, deps: AppDeps = {}): Promise<F
       await api.register(uploadsRoutes, { prefix: '/uploads' });
       await api.register(usersRoutes, { prefix: '/users' });
       await api.register(rolesRoutes);
+      await api.register(branchesRoutes, { prefix: '/branches' });
+      await api.register(cashRegistersRoutes, { prefix: '/cash-registers' });
       await deps.registerExtra?.(api);
     },
     { prefix: '/api/v1' },

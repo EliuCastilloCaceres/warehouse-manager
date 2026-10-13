@@ -123,6 +123,23 @@ pnpm --filter @warehouse-manager/web preview     # https://<IP-LAN>:4173
 
 Se abre a pantalla completa, sin barra del navegador. Cuando hay una versión nueva, la app no se recarga sola: aparece el aviso "Hay una nueva versión disponible" y se actualiza al tocar **Actualizar** (así nunca se interrumpe una venta). Los datos (`/api`) y las fotos (`/uploads`) siempre se piden al servidor; la app no funciona sin conexión.
 
+### Ajustes: sucursal y cajas
+
+Módulo **Ajustes**. La pestaña **Sucursal** exige `settings.branch` y la pestaña **Cajas**, `settings.registers`; solo se ven las que permite tu rol. Siempre se edita la sucursal con la que trabajas (la del menú de usuario).
+
+- **Sucursal:** nombre, razón social, RFC, dirección, teléfono, correo, imágenes, textos del ticket, zona horaria, IVA y umbral de stock bajo. El código (prefijo de los folios) y la moneda (MXN) no se editan. Vaciar un campo lo borra. Solo se guardan los campos que cambiaste, y cada cambio queda en el audit con el valor anterior y el nuevo.
+- **IVA y zona horaria:** el IVA se escribe en % (`16`, `16.5`) y, como "Los precios incluyen IVA", solo aplica a ventas nuevas; cada venta guarda su copia. Cambiar la zona horaria cambia cómo se agrupan por día las ventas en reportes y cortes, también las anteriores.
+- **Vista previa del ticket:** a la derecha en escritorio y con **Vista previa** en el celular. Muestra tus cambios mientras escribes, antes de guardar, en papel de 80 o 58 mm, con partidas de ejemplo. **Imprimir prueba** la manda a la impresora (en la TM-T20III, papel de 80 mm, márgenes "Ninguno" y escala 100 %).
+- **Cajas:** se editan el código (único en la sucursal) y el nombre; no se agregan ni se eliminan.
+
+**Logo y foto:** en **Imágenes**, toca **Cambiar** y elige un JPG, PNG o WebP de hasta 10 MB. Se sube de inmediato (se guarda en WebP), pero queda en la sucursal hasta que pulsas **Guardar**. **Quitar** lo borra al guardar. El logo va en el encabezado del ticket; la foto solo se ve en Ajustes. Para el ticket conviene un logo en blanco y negro, sin fondo y más ancho que alto.
+
+**QR de promoción:** se arma con dos campos del bloque **Ticket**:
+
+- **Texto del QR:** lo que lleva el QR. Si es un enlace (`https://…` o `www.…`), el celular del cliente lo abre al escanearlo. Cualquier otro texto, como un código de descuento (`DESC10`), viaja como `PROMO:DESC10`: al escanearlo en el sistema se reconoce como promoción y el POS muestra el código, pero el descuento lo aplica el cajero a mano (con `pos.discount`); el sistema no lo valida.
+- **Descripción del QR:** se imprime debajo del QR (por ejemplo, "Muestra este QR en tu próxima compra").
+- Con solo la descripción se imprime como mensaje, sin QR; sin ninguno de los dos, no se imprime nada.
+
 ### Prueba de escáner e impresión (`/dev/scanner`)
 
 Menú de usuario → **Probar escáner**. Sirve para verificar en la tienda la cámara, el lector y la impresora de etiquetas:

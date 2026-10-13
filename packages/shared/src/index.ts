@@ -11,4 +11,5 @@ export * from './sku.js';
 export * from './dto/index.js';
 export * from './auth.js';
 export * from './uploads.js';
+export * from './settings.js';
 export * from './users.js';

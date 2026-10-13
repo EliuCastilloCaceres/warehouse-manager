@@ -12,6 +12,9 @@ import { BranchProvider } from '@/features/branch/BranchProvider';
 import { SelectBranchPage } from '@/features/branch/SelectBranchPage';
 import { ScannerTestPage } from '@/features/dev/ScannerTestPage';
 import { HomePage } from '@/features/home/HomePage';
+import { BranchSettingsForm } from '@/features/settings/BranchSettingsForm';
+import { CashRegistersTab } from '@/features/settings/CashRegistersTab';
+import { SettingsIndex, SettingsPage } from '@/features/settings/SettingsPage';
 import { UserFormPage } from '@/features/users/UserFormPage';
 import { UsersListPage } from '@/features/users/UsersListPage';
 import { ComingSoonPage } from '@/shared/ComingSoonPage';
@@ -20,7 +23,7 @@ import { AppLayout } from './AppLayout';
 import { MODULES } from './modules';
 
 /** Módulos con pantallas propias; los demás siguen como "Próximamente". */
-const IMPLEMENTED = new Set(['/users']);
+const IMPLEMENTED = new Set(['/users', '/settings']);
 
 /** Sesión y sucursal viven dentro del router para poder navegar. */
 function AppRoot() {
@@ -64,6 +67,33 @@ export const routes: RouteObject[] = [
                           ),
                         }),
                       ),
+                      {
+                        path: 'settings',
+                        element: (
+                          <RequirePermission anyOf={['settings.branch', 'settings.registers']}>
+                            <SettingsPage />
+                          </RequirePermission>
+                        ),
+                        children: [
+                          { index: true, element: <SettingsIndex /> },
+                          {
+                            path: 'branch',
+                            element: (
+                              <RequirePermission perm="settings.branch">
+                                <BranchSettingsForm />
+                              </RequirePermission>
+                            ),
+                          },
+                          {
+                            path: 'registers',
+                            element: (
+                              <RequirePermission perm="settings.registers">
+                                <CashRegistersTab />
+                              </RequirePermission>
+                            ),
+                          },
+                        ],
+                      },
                       {
                         path: 'users',
                         element: (

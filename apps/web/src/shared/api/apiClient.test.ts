@@ -44,6 +44,29 @@ describe('apiFetch (T1)', () => {
   });
 });
 
+describe('apiFetch con FormData (T15 de F5)', () => {
+  it('envía el mismo FormData sin Content-Type propio y conserva los headers de sesión', async () => {
+    const fetchMock = mockFetch({
+      'POST /api/v1/uploads/branch-images': () => jsonResponse(201, { url: '/x.webp' }),
+      'POST /api/v1/x': () => jsonResponse(200, {}),
+    });
+    configureApiClient({ getAccessToken: () => 'abc', getBranchId: () => 'branch-1' });
+    const form = new FormData();
+    form.append('file', new Blob(['png'], { type: 'image/png' }), 'logo.png');
+
+    await apiFetch('/api/v1/uploads/branch-images', { method: 'POST', body: form });
+
+    const call = callsTo(fetchMock, 'POST /api/v1/uploads/branch-images')[0]!;
+    expect((call[1] as RequestInit).body).toBe(form);
+    expect(headersOf(call)).toEqual({ authorization: 'Bearer abc', 'x-branch-id': 'branch-1' });
+
+    await apiFetch('/api/v1/x', { method: 'POST', body: { a: 1 } });
+    const json = callsTo(fetchMock, 'POST /api/v1/x')[0]!;
+    expect((json[1] as RequestInit).body).toBe('{"a":1}');
+    expect(headersOf(json)['content-type']).toBe('application/json');
+  });
+});
+
 describe('errores (T2)', () => {
   it.each([
     [

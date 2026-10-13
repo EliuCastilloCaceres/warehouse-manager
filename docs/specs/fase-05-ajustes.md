@@ -1,7 +1,7 @@
 ---
 id: fase-05
 titulo: "Ajustes: sucursal y cajas"
-estado: LISTA
+estado: COMPLETA
 depende_de: [fase-04]
 autoriza_codigo_en:
   - "apps/api/src/modules/settings/**"
@@ -16,6 +16,8 @@ autoriza_codigo_en:
   - "apps/web/src/shared/api/apiClient.ts"
   - "apps/web/src/shared/api/apiClient.test.ts"
   - "apps/web/src/app/routes.tsx"
+  - "apps/api/jest.config.cjs"
+  - "apps/web/jest.config.cjs"
   - "README.md"
   - "docs/plan/plan.md"
 fuera_de_alcance:
@@ -29,9 +31,9 @@ fuera_de_alcance:
   - "Bloqueo optimista entre dos administradores que editan a la vez (gana la última escritura)"
   - "Cambios a schema.prisma o migraciones (el modelo es de F1; si hiciera falta, se pregunta)"
 tests_requeridos_total: 26
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 26
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/api/src/modules/settings/**, apps/web/src/features/settings/**, apps/web/src/shared/ticket/** y packages/shared (se mantiene)"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -297,31 +299,31 @@ Con precios sin IVA, los totales se muestran como "Subtotal", "IVA 16 %" y "Tota
 
 ## 9. TODOs (en orden, verificables)
 
-- [ ] **1. Contratos.**
+- [x] **1. Contratos.**
   - Crear `shared/settings.ts` (esquemas, `isValidTimeZone` y `promoBlock`). Tests **T1–T5**.
   - *Verificable:* T1–T5 en verde.
-- [ ] **2. API: sucursal.**
+- [x] **2. API: sucursal.**
   - `settings.repository.ts`, `settings.service.ts` y `branches.routes.ts`; registrar en `app.ts`; helper de test `createSaleFixture`. Tests **T6–T10**.
   - *Verificable:* T6–T10 en verde.
-- [ ] **3. API: cajas.**
+- [x] **3. API: cajas.**
   - `cashRegisters.routes.ts` y su servicio. Tests **T11–T14**.
   - *Verificable:* T11–T14 en verde.
-- [ ] **4. `apiFetch` con `FormData`.**
+- [x] **4. `apiFetch` con `FormData`.**
   - Extender `apiClient.ts` (§3). Test **T15**; T1–T7 de F3 siguen en verde.
   - *Verificable:* T15 y los tests de F3 en verde.
-- [ ] **5. UI: página y pestañas.**
+- [x] **5. UI: página y pestañas.**
   - `SettingsPage`, rutas `/settings/*` y hooks de datos. Test **T16**.
   - *Verificable:* T16 en verde.
-- [ ] **6. UI: formulario de sucursal.**
+- [x] **6. UI: formulario de sucursal.**
   - `BranchSettingsForm`, `BranchImageField` y la captura de IVA y zona horaria. Tests **T17–T19**.
   - *Verificable:* T17–T19 en verde.
-- [ ] **7. UI: ticket y vista previa.**
+- [x] **7. UI: ticket y vista previa.**
   - `shared/ticket/` (`TicketHeader`, `TicketFooter`, `PromoBlock`), `previewTotals`, `TicketPreview` y "Imprimir prueba". Tests **T20–T24**.
   - *Verificable:* T20–T24 en verde.
-- [ ] **8. UI: cajas.**
+- [x] **8. UI: cajas.**
   - `CashRegistersTab` y su diálogo de edición. Tests **T25–T26**.
   - *Verificable:* T25–T26 en verde.
-- [ ] **9. README y cierre.**
+- [x] **9. README y cierre.**
   - En el README: Ajustes, cómo subir el logo y la configuración del QR de promoción.
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; hacer las verificaciones manuales (§11); registrar la cobertura; llenar §12 Evidencia y aplicar la Definition of Done (constitución §4).
 
@@ -371,8 +373,8 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | CA1 | Los cambios de la sucursal se reflejan en la vista previa del ticket mientras se escriben. | T20–T22 |
 | CA2 | Sin el permiso correspondiente, la sección no es visible y la API responde 403. | T6, T11, T14, T16 |
 | CA3 | Cambiar el IVA no altera las ventas ya registradas. | T10 |
-| CA4 | El QR de promoción se genera desde el texto, con su descripción, según las reglas de §8.1. | T4, T21 + verificación manual con un ticket de prueba impreso: un QR de enlace se abre con la cámara del celular; un QR de código, leído con el lector en `/dev/scanner`, aparece como `promo` con su texto |
-| CA5 | "Imprimir prueba" en la Epson TM-T20III (80 mm) produce un ticket legible con logo, textos y QR, sin márgenes recortados. | Verificación manual (fecha y responsable en §12) |
+| CA4 | El QR de promoción se genera desde el texto, con su descripción, según las reglas de §8.1. | T4, T21 + verificación manual: un QR de enlace se abre con la cámara del celular; un QR de código, leído en `/dev/scanner`, aparece como `promo` con su texto (con la cámara del celular sobre la vista previa; decisión del usuario 2026-10-13) |
+| CA5 | "Imprimir prueba" en la Epson TM-T20III (80 mm) produce un ticket legible con logo, textos y QR, sin márgenes recortados. | Verificación manual **movida a F8**: se hace junto con F8 CA6, antes de cerrar F8 (decisión del usuario 2026-10-13) |
 | CA6 | Las cajas se editan (nombre y código) sin poder agregar ni eliminar, y el código no se repite en la sucursal. | T13, T25, T26 |
 | CA7 | Toda edición queda en el audit con el valor anterior y el nuevo. | T9, T13 |
 | CA8 | `pnpm lint`, `pnpm typecheck`, `pnpm test` (con `pnpm dev:db`) y `pnpm build` pasan en limpio, incluidos los tests de F0–F4. | Salida de los comandos en §12 |
@@ -385,6 +387,24 @@ El criterio del plan "los cambios se reflejan después en los tickets reales" se
 ## 12. Evidencia
 
 *(Se completa al cerrar la fase.)*
+
+**Cierre 2026-10-13 (agente, Windows 11 + Node 24.20.0 + pnpm 12.9.1 + Docker 29.8.0):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` (con `pnpm dev:db`) | Los cuatro con código 0, incluidos los tests de F0–F4 (CA8). |
+| Tests | 26/26 requeridos en verde. `shared`: 277 casos en 13 suites. `api`: 375 en 56 suites (`settings-branch`, `settings-registers` y `settings-access`). `web`: 258 en 35 suites. Sin `skip`/`only`/`todo`/`xit`. |
+| Cobertura (umbral por carpeta 80 %, fijo en los `jest.config.cjs`) | `apps/api/src/modules/settings/**` 98,83 % líneas · 94,44 % ramas; `apps/web/src/features/settings/**` 100 % · 95,73 %; `apps/web/src/shared/ticket/**` 100 % · 100 %; `packages/shared` 100 % · 97,43 % (CA9). |
+| Alcance (constitución §4.6) | Código solo en `autoriza_codigo_en`, sin dependencias nuevas. Además cambia `docs/specs/fase-08-pos.md` (CA6 y §13) por la decisión del usuario de mover allí la verificación de CA5. |
+
+**Cierre 2026-10-13 (usuario, Eliu Castillo):** verifica CA4 con la cámara del celular, mueve CA5 a la verificación de F8 CA6, aprueba las propuestas del agente y confirma el cierre (constitución §4.9).
+
+### Verificación manual (usuario, 2026-10-13)
+
+| CA | Resultado |
+|---|---|
+| CA4 | OK: el QR de un enlace, escaneado con la cámara del celular desde la vista previa, abre el enlace; el QR de `DESC10`, leído con la cámara en `/dev/scanner`, aparece como Promoción con su texto. La lectura con el lector queda para la visita a la sucursal de F8 |
+| CA5 | Pendiente: se verifica en la Epson TM-T20III antes de cerrar F8 (F8 CA6) |
 
 ---
 
@@ -409,3 +429,12 @@ El criterio del plan "los cambios se reflejan después en los tickets reales" se
 | 2026-10-03 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
 | 2026-10-03 | El seed crea una segunda sucursal `S2` con sus cajas `C1`/`C2`; en T11 y T13, "otra sucursal" puede ser `S2`. | Usuario (chat), durante la revisión de F6; F1 §7.2 actualizado |
 | 2026-10-05 | `TicketHeader`, `TicketFooter` y `PromoBlock` reciben solo los campos de ticket (`Pick<BranchDto, …>`), para que F8 les pase `TicketBranchDto`. F8 entrega los datos del ticket al vendedor y reemplaza `previewTotals` por `computeSaleTotals` (mismos montos). | Usuario (chat), durante la redacción de F8 |
+| 2026-10-13 | `apiFetch` ya aceptaba `FormData` desde F3 (sin `Content-Type` propio): el TODO 4 solo agrega T15 y `apiClient.ts` no cambia. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Duplicados de código de caja: el índice único de F1 los rechaza (P2002) y el módulo responde 409 `CONFLICT` con "Ya existe una caja con ese código." y `details.target: ['code']`, también si dos ediciones compiten. Una sucursal que está en los claims pero no en la BD responde 404 (no ocurre en la práctica). | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Aviso de ventas: uno solo, que aparece al cambiar el IVA, "precios incluyen IVA" o la zona horaria (T18) y dice: "Aplica a ventas nuevas; las anteriores conservan su IVA. La zona horaria también cambia cómo se agrupan por día las ventas ya registradas en reportes y cortes." | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Ticket de ejemplo: fecha `dd/mm/aaaa, hh:mm` en la zona del formulario; efectivo = total redondeado hacia arriba a $100 (con su cambio); debajo del QR, el texto sin prefijo y luego la descripción. "Imprimir prueba" monta `PrintLayout` solo mientras imprime (se desmonta con `afterprint`) e imprime la vista previa completa, con "— Vista previa —". | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | Formulario: la vista previa lee los valores con `useWatch` (la regla de React Compiler del lint desaconseja `watch()`); el selector de zona horaria (más de 400 opciones, con grupos "México" y "Otras") va memorizado para no redibujarse en cada tecla. En el celular, barra fija con "Vista previa" (hoja inferior) y "Guardar"; en escritorio, la vista previa queda a la derecha. `previewTotals` redondea con aritmética entera. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | `TicketBranch` (el `Pick<BranchDto, …>` de los campos de ticket) y `TICKET_CONTENT_WIDTH` se exportan desde `shared/ticket/TicketHeader.tsx`. Helper de test `createSaleFixture` en `test/integration/helpers/sales.ts`; datos de prueba de la web en `features/settings/testing.ts`. Tests extra además de los 26: caja sin cambios, estados de error y vacío, guardar sin cambios, vista previa en el celular, zonas horarias y `TicketHeader`. | Propuesta del agente; aprobada por el usuario (2026-10-13) |
+| 2026-10-13 | La impresión de prueba en la Epson TM-T20III (CA5) se verifica en la sucursal antes de cerrar F8, junto con F8 CA6, porque F8 reutiliza los mismos componentes del ticket. CA4 se acepta con la cámara del celular en lugar del lector. F5 puede cerrarse sin CA5. | Usuario (chat); F8 §11 y §13 actualizados |
+| 2026-10-13 | Cobertura permanente: `apps/api/jest.config.cjs` mide `src/modules/settings/**` y `apps/web/jest.config.cjs` mide `src/features/settings/**` (sin `testing.ts`) y `src/shared/ticket/**`, con umbral de 80 % en líneas y ramas. | Usuario (chat) |
+| 2026-10-13 | F5 cumple la Definition of Done (con CA5 movido a F8 por decisión del usuario) y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |

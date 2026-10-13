@@ -509,7 +509,7 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | CA3 | Las reservas se reflejan como "en piso" en el mapa del almacén. | T20 |
 | CA4 | Al vender, el stock baja exactamente lo vendido, del rack de origen, y el kardex lo refleja. | T14 |
 | CA5 | Dos vendedores no pueden reservar la misma última unidad; los folios no se duplican. | T22 |
-| CA6 | El ticket muestra los datos configurados en Ajustes y se imprime correctamente a 80 mm. | T14, T31 + verificación manual en la Epson TM-T20III (logo, textos, partidas, totales y QR legibles, sin cortes) |
+| CA6 | El ticket muestra los datos configurados en Ajustes y se imprime correctamente a 80 mm. | T14, T31 + verificación manual en la Epson TM-T20III (logo, textos, partidas, totales y QR legibles, sin cortes). Incluye la verificación pendiente de F5 CA5: "Imprimir prueba" de Ajustes en la misma impresora y, con el lector, un QR de código de promoción en `/dev/scanner` |
 | CA7 | Una venta cancelada deja su stock en staging, el kardex lo refleja y su efectivo no cuenta en el corte. No se puede cancelar si la caja ya está cerrada. | T6, T19 |
 | CA8 | El vendedor sabe si un producto tiene existencias en otra sucursal. | T20, T26 |
 | CA9 | Cualquier cajero (o el mismo vendedor) cobra cualquier carrito de la sucursal, y el dinero queda en la caja que cobra: los cortes cuadran. | T15, T17 |
@@ -553,3 +553,4 @@ El criterio de F5 "los cambios se reflejan después en los tickets reales" queda
 | 2026-10-05 | Verificación en caja **opcional pero visible**: el cajero escanea las piezas y cada lectura palomea una partida; una pieza ajena solo avisa; cobrar con piezas sin verificar pide confirmación y queda en el audit `pos.checkout.unverified`. | Usuario (chat); plan §8 F8 actualizado |
 | 2026-10-05 | Número corto de carrito ("Carrito #12"): el menor libre 1–999 entre los carritos abiertos de la sucursal, visible en el celular del vendedor y buscable en caja (`Cart.number`). | Usuario (chat), por sugerencia del agente; F1 §4.6, §5.1 y §5.2 y plan §4.2 actualizados |
 | 2026-10-05 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
+| 2026-10-13 | F5 CA5 ("Imprimir prueba" de Ajustes en la TM-T20III) y la lectura con el lector del QR de promoción de F5 CA4 se verifican junto con CA6, antes de cerrar F8. | Usuario (chat), al cerrar F5 |
