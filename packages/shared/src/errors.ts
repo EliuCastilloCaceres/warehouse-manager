@@ -40,6 +40,11 @@ export const ErrorCode = z.enum([
   'PRODUCT_IMAGE_LIMIT',
   'IMPORT_INVALID',
   'IMPORT_CONFIRMATION_REQUIRED',
+  // F7
+  'RACK_HAS_STOCK',
+  'STRUCTURE_HAS_HISTORY',
+  'STRUCTURE_LOCKED',
+  'STRUCTURE_FULL',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;
 

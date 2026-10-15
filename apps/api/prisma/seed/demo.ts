@@ -1,5 +1,6 @@
 import { buildLocationCode } from '@warehouse-manager/shared';
 import type { Prisma, PrismaClient } from '../../src/generated/prisma/client.js';
+import { InventoryService } from '../../src/modules/inventory/inventory.service.js';
 import { emptySummary, type SeedSummary } from './summary.js';
 
 type Tx = Prisma.TransactionClient;
@@ -156,9 +157,77 @@ async function seedCatalog(tx: Tx, summary: SeedSummary): Promise<void> {
   }
 }
 
+export const DEMO_NOTE = 'Demo';
+
+/** Stock de ejemplo (spec F7 §7): `ZAP0101-26-NEG` agotado en S1 y disponible en S2. */
+const STOCK: { branch: string; location: string; items: [sku: string, quantity: number][] }[] = [
+  {
+    branch: 'S1',
+    location: 'A-01-01',
+    items: [
+      ['ZAP0101-23-NEG', 3],
+      ['ZAP0101-24-NEG', 3],
+      ['ZAP0101-25-NEG', 4],
+    ],
+  },
+  {
+    branch: 'S1',
+    location: 'A-01-02',
+    items: [
+      ['ZAP0101-25-CAF', 1],
+      ['ZAP0101-26-CAF', 2],
+    ],
+  },
+  {
+    branch: 'S1',
+    location: 'B-01-01',
+    items: [
+      ['BOL0201-NEG', 5],
+      ['BOL0201-ROJ', 2],
+    ],
+  },
+  { branch: 'S1', location: 'C-01-01', items: [['ACC0301', 10]] },
+  { branch: 'S1', location: 'STG-01-01', items: [['ZAP0102-26-BLA', 2]] },
+  {
+    branch: 'S2',
+    location: 'STG-01-01',
+    items: [
+      ['ZAP0101-26-NEG', 2],
+      ['ZAP0102-25-BLA', 1],
+    ],
+  },
+];
+
 /**
- * Seed de demo idempotente (spec F1 §7.3): estructura del almacén ALM1 de S1 y catálogo
- * de ejemplo, sin stock. Requiere el seed base; no modifica lo que ya existe.
+ * Carga el stock de ejemplo con `InventoryService` (`INITIAL_LOAD`, nota "Demo", a nombre del
+ * owner). Solo corre si todavía no hay ningún movimiento con esa nota.
+ */
+async function seedStock(tx: Tx, summary: SeedSummary): Promise<void> {
+  if (await tx.inventoryMovement.findFirst({ where: { note: DEMO_NOTE } })) return;
+  const owner = await tx.user.findUniqueOrThrow({ where: { username: 'owner' } });
+  const inventory = new InventoryService();
+  for (const { branch, location, items } of STOCK) {
+    const rack = await tx.rack.findFirstOrThrow({
+      where: { locationCode: location, warehouse: { code: 'ALM1', branch: { code: branch } } },
+    });
+    for (const [sku, quantity] of items) {
+      const variant = await tx.productVariant.findUniqueOrThrow({ where: { sku } });
+      await inventory.receive(tx, {
+        type: 'INITIAL_LOAD',
+        variantId: variant.id,
+        rackId: rack.id,
+        quantity,
+        userId: owner.id,
+        note: DEMO_NOTE,
+      });
+      summary.created.push(`Stock ${sku} × ${quantity} en ${branch} ${location}`);
+    }
+  }
+}
+
+/**
+ * Seed de demo idempotente (spec F1 §7.3 y F7 §7): estructura del almacén ALM1 de S1,
+ * catálogo de ejemplo y stock. Requiere el seed base; no modifica lo que ya existe.
  */
 export async function seedDemo(prisma: PrismaClient): Promise<SeedSummary> {
   const summary = emptySummary();
@@ -175,6 +244,7 @@ export async function seedDemo(prisma: PrismaClient): Promise<SeedSummary> {
       }
       await seedStructure(tx, summary, warehouse.id);
       await seedCatalog(tx, summary);
+      await seedStock(tx, summary);
     },
     { timeout: 60_000 },
   );

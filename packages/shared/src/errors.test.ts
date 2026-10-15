@@ -73,3 +73,15 @@ describe('códigos de F6 (T7 de F6)', () => {
     for (const code of nuevos) expect(ErrorCode.options).toContain(code);
   });
 });
+
+describe('códigos de F7 (T5 de F7)', () => {
+  it('los 4 códigos nuevos existen', () => {
+    const nuevos = [
+      'RACK_HAS_STOCK',
+      'STRUCTURE_HAS_HISTORY',
+      'STRUCTURE_LOCKED',
+      'STRUCTURE_FULL',
+    ];
+    for (const code of nuevos) expect(ErrorCode.options).toContain(code);
+  });
+});

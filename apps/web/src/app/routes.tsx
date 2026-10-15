@@ -1,3 +1,5 @@
+import type { PermissionCode } from '@warehouse-manager/shared';
+import type { ReactNode } from 'react';
 import { Outlet, type RouteObject } from 'react-router';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
@@ -21,13 +23,35 @@ import { CashRegistersTab } from '@/features/settings/CashRegistersTab';
 import { SettingsIndex, SettingsPage } from '@/features/settings/SettingsPage';
 import { UserFormPage } from '@/features/users/UserFormPage';
 import { UsersListPage } from '@/features/users/UsersListPage';
+import { LocationLabelsPage } from '@/features/warehouse/LocationLabelsPage';
+import { MovementsPage } from '@/features/warehouse/MovementsPage';
+import { PutawayPage } from '@/features/warehouse/PutawayPage';
+import { RelocatePage } from '@/features/warehouse/RelocatePage';
+import { SearchPage } from '@/features/warehouse/SearchPage';
+import { SetupPage } from '@/features/warehouse/SetupPage';
+import { StagingPage } from '@/features/warehouse/StagingPage';
+import { WarehouseHomePage } from '@/features/warehouse/WarehouseHomePage';
+import { WarehouseMapPage } from '@/features/warehouse/WarehouseMapPage';
 import { ComingSoonPage } from '@/shared/ComingSoonPage';
 import { NotFoundPage } from '@/shared/NotFoundPage';
 import { AppLayout } from './AppLayout';
 import { MODULES } from './modules';
 
 /** Módulos con pantallas propias; los demás siguen como "Próximamente". */
-const IMPLEMENTED = new Set(['/users', '/settings', '/products']);
+const IMPLEMENTED = new Set(['/users', '/settings', '/products', '/warehouse']);
+
+/** `/warehouse/*`: cada pantalla con su permiso (spec F7 §3). */
+const WAREHOUSE_PAGES: readonly (readonly [path: string, PermissionCode, ReactNode])[] = [
+  ['warehouse', 'warehouse.read', <WarehouseHomePage />],
+  ['warehouse/map', 'warehouse.read', <WarehouseMapPage />],
+  ['warehouse/search', 'warehouse.read', <SearchPage />],
+  ['warehouse/putaway', 'inventory.putaway', <PutawayPage />],
+  ['warehouse/relocate', 'inventory.relocate', <RelocatePage />],
+  ['warehouse/staging', 'inventory.putaway', <StagingPage />],
+  ['warehouse/movements', 'inventory.movements.read', <MovementsPage />],
+  ['warehouse/setup', 'warehouse.manage', <SetupPage />],
+  ['warehouse/labels', 'warehouse.labels', <LocationLabelsPage />],
+];
 
 /** Sesión y sucursal viven dentro del router para poder navegar. */
 function AppRoot() {
@@ -111,6 +135,10 @@ export const routes: RouteObject[] = [
                           </RequirePermission>
                         ),
                       },
+                      ...WAREHOUSE_PAGES.map(([path, perm, element]) => ({
+                        path,
+                        element: <RequirePermission perm={perm}>{element}</RequirePermission>,
+                      })),
                       {
                         path: 'settings',
                         element: (

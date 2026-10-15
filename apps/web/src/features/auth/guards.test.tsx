@@ -78,13 +78,13 @@ describe('RequirePermission (T16)', () => {
   });
 
   it('con el permiso, el placeholder del módulo', async () => {
+    // F7 implementó /warehouse: el ejemplo de placeholder pasa a /reports (reports.sales).
     mockFetch({
-      'POST /api/v1/auth/refresh': () =>
-        jsonResponse(200, makeSession({ role: 'WAREHOUSE_CLERK' })),
+      'POST /api/v1/auth/refresh': () => jsonResponse(200, makeSession({ role: 'SELLER' })),
     });
-    renderApp('/warehouse');
+    renderApp('/reports');
 
-    expect(await screen.findByRole('heading', { name: 'Almacén' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Reportes' })).toBeInTheDocument();
     expect(screen.getByText('Próximamente')).toBeInTheDocument();
   });
 });

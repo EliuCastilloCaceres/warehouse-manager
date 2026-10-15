@@ -27,6 +27,7 @@ import './core/types.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { inventoryRoutes } from './modules/inventory/inventory.routes.js';
 import { productImagesRoutes } from './modules/products/images.routes.js';
 import { productImportRoutes } from './modules/products/import.routes.js';
 import { productLabelsRoutes } from './modules/products/labels.routes.js';
@@ -36,6 +37,8 @@ import { cashRegistersRoutes } from './modules/settings/cashRegisters.routes.js'
 import { uploadsRoutes } from './modules/uploads/uploads.routes.js';
 import { rolesRoutes } from './modules/users/roles.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
+import { locationLabelsRoutes } from './modules/warehouse/labels.routes.js';
+import { structureRoutes } from './modules/warehouse/structure.routes.js';
 
 export interface AppDeps {
   prisma?: PrismaClient;
@@ -102,6 +105,9 @@ export async function buildApp(config: AppConfig, deps: AppDeps = {}): Promise<F
       await api.register(productImagesRoutes, { prefix: '/products' });
       await api.register(productLabelsRoutes, { prefix: '/products' });
       await api.register(productImportRoutes, { prefix: '/products' });
+      await api.register(structureRoutes);
+      await api.register(locationLabelsRoutes);
+      await api.register(inventoryRoutes, { prefix: '/inventory' });
       await deps.registerExtra?.(api);
     },
     { prefix: '/api/v1' },

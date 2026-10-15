@@ -1,7 +1,7 @@
 ---
 id: fase-07
 titulo: Almacén e inventario
-estado: LISTA
+estado: COMPLETA
 depende_de: [fase-06]
 autoriza_codigo_en:
   - "apps/api/src/modules/warehouse/**"
@@ -25,6 +25,10 @@ autoriza_codigo_en:
   - "packages/shared/src/errors.test.ts"
   - "apps/web/src/features/warehouse/**"
   - "apps/web/src/app/routes.tsx"
+  - "apps/api/jest.config.cjs"
+  - "apps/web/jest.config.cjs"
+  - "apps/web/src/features/auth/guards.test.tsx"
+  - "apps/api/test/integration/products-import.int.test.ts"
   - "README.md"
   - "docs/plan/plan.md"
 fuera_de_alcance:
@@ -37,9 +41,9 @@ fuera_de_alcance:
   - "Cambios en InventoryService (F2) salvo el motivo de ajuste ya declarado en F2; modo offline; impresión directa ESC/POS"
   - "Cambios a schema.prisma o migraciones (el modelo es de F1; si hiciera falta, se pregunta)"
 tests_requeridos_total: 38
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 38
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/api/src/modules/warehouse/**, apps/api/src/modules/inventory/** (rutas y consultas nuevas), apps/web/src/features/warehouse/** y packages/shared (se mantiene)"
-definition_of_done: pendiente
+definition_of_done: cumplido
 bloqueado_por: []
 ---
 
@@ -65,7 +69,7 @@ Referencias: plan §1.2 (Almacén), §4.2–4.3 (almacén, capacidad, estados, s
 3. Stock en el seed de demo (en `S1` y en el staging de `S2`).
 4. UI de almacén: inicio, mapa, buscar, ubicar (dos modos), reubicar, staging, ajuste, kardex, configurar y etiquetas.
 
-**Fuera de alcance:** ver la cabecera. **Regresión declarada de F1:** el seed de demo ahora crea stock, así que T24 de F1 se adapta ("deja 0 `stock_location`" pasa a verificar el stock de §7.2 de esta spec). Es el único cambio permitido sobre entregables de F1.
+**Fuera de alcance:** ver la cabecera. **Regresión declarada de F1:** el seed de demo ahora crea stock, así que T24 de F1 se adapta ("deja 0 `stock_location`" pasa a verificar el stock de §7.2 de esta spec). Es el único cambio permitido sobre entregables de F1. **Regresiones declaradas de F3 y F6** (autorizadas el 2026-10-14): T16 de F3 usa `/reports` como ejemplo de módulo "Próximamente" (F7 implementa `/warehouse`), y T25 de F6 completa A-01-02 hasta 38 unidades según lo que ya tiene (el seed de demo ahora pone 3 ahí). Solo cambian esos dos tests.
 
 ---
 
@@ -301,7 +305,7 @@ Todos bajo `/api/v1`. Las respuestas de error son `ApiErrorDto`. `:id` de almac�
 | `POST /inventory/putaway/batch` | ídem | `PutawayBatchInput` | 200 `StockOperationDto` · ídem (con `details.itemIndex`) |
 | `POST /inventory/relocate` | `inventory.relocate` (+ override) | `RelocateInput` | 200 `StockOperationDto` · 409 (`STOCK_INSUFFICIENT`, `RACK_CAPACITY_EXCEEDED`, `INVENTORY_CROSS_WAREHOUSE`) |
 | `POST /inventory/adjust` | `inventory.adjust` (+ override) | `AdjustInput` | 200 `StockOperationDto` · 400 · 403 · 409 |
-| `GET /inventory/movements` | `inventory.movements.read` | `MovementListQuery` | 200 `paginated(MovementRowDto)` |
+| `GET /inventory/movements` | `inventory.movements.read` | `MovementListQuery` | 200 `MovementPageDto` (`paginated(MovementRowDto)` + `timezone` de la sucursal) |
 
 ---
 
@@ -324,7 +328,7 @@ Todos bajo `/api/v1`. Las respuestas de error son `ApiErrorDto`. `:id` de almac�
 
 ## 8. Pantallas (wireframe en texto)
 
-**Inicio (`/warehouse`)**: accesos grandes según permisos: Mapa · Buscar · Ubicar · Reubicar · Staging (con contador) · Kardex · Configurar · Etiquetas.
+**Inicio (`/warehouse`)**: accesos grandes según permisos: Mapa · Buscar · Ubicar · Reubicar · Staging (con contador) · Ajustar · Kardex · Configurar · Etiquetas. "Ajustar" (`inventory.adjust`) abre Buscar en modo ajuste: se elige la variante y la ubicación (una de las suyas o escaneando otra) y se abre el diálogo de ajuste.
 
 **Mapa (`/warehouse/map`)**
 
@@ -407,40 +411,40 @@ Con un SKU padre se listan sus variantes y se elige una.
 
 ## 10. TODOs (en orden, verificables)
 
-- [ ] **1. Contratos.**
+- [x] **1. Contratos.**
   - `shared/warehouse.ts`, `shared/inventory.ts` y los 4 códigos de error (también en la API). Tests **T1–T5**.
   - *Verificable:* T1–T5 en verde.
-- [ ] **2. API: estructura.**
+- [x] **2. API: estructura.**
   - `warehouse.repository.ts`, `structure.service.ts` y `structure.routes.ts` (crear, lote, editar con recálculo, desactivar, reactivar, borrar, staging bloqueada); registrar en `app.ts`. Tests **T6–T13**.
   - *Verificable:* T6–T13 en verde.
-- [ ] **3. API: árbol y contenido.**
+- [x] **3. API: árbol y contenido.**
   - `tree.service.ts` y las rutas de contenido. Tests **T14–T15**.
   - *Verificable:* T14–T15 en verde.
-- [ ] **4. API: búsqueda y sugerencias.**
+- [x] **4. API: búsqueda y sugerencias.**
   - `inventory.queries.ts` (`locate`, `byLocation`, `otherBranchesStock`, `suggest`) y sus rutas. Tests **T16–T19**.
   - *Verificable:* T16–T19 en verde.
-- [ ] **5. API: operaciones.**
+- [x] **5. API: operaciones.**
   - Ubicar (individual y lote), reubicar y ajustar en `inventory.routes.ts` sobre `InventoryService`. Tests **T20–T23** y **T26**.
   - *Verificable:* T20–T23 y T26 en verde.
-- [ ] **6. API: kardex y etiquetas.**
+- [x] **6. API: kardex y etiquetas.**
   - `GET /inventory/movements` y `labels.routes.ts`. Tests **T24–T25**.
   - *Verificable:* T24–T25 en verde.
-- [ ] **7. Seed de demo con stock.**
+- [x] **7. Seed de demo con stock.**
   - Extender `prisma/seed/demo.ts` (§7) y adaptar T24 de F1. Test **T27**.
   - *Verificable:* T27 y el T24 adaptado en verde; `pnpm seed:demo` dos veces no duplica stock.
-- [ ] **8. UI: inicio, mapa y buscar.**
+- [x] **8. UI: inicio, mapa y buscar.**
   - `WarehouseHomePage`, `WarehouseMapPage`, `RackContent` y `SearchPage`. Tests **T28–T30**.
   - *Verificable:* T28–T30 en verde.
-- [ ] **9. UI: ubicar, reubicar y staging.**
+- [x] **9. UI: ubicar, reubicar y staging.**
   - `PutawayPage` (dos modos), `RelocatePage`, `StagingPage` y el diálogo de capacidad excedida. Tests **T31–T34**.
   - *Verificable:* T31–T34 en verde.
-- [ ] **10. UI: ajuste y kardex.**
+- [x] **10. UI: ajuste y kardex.**
   - `AdjustDialog` y `MovementsPage`. Tests **T35–T36**.
   - *Verificable:* T35–T36 en verde.
-- [ ] **11. UI: configurar y etiquetas.**
+- [x] **11. UI: configurar y etiquetas.**
   - `SetupPage` (árbol editable, asistente de lote, paleta, cambio de código) y `LocationLabelsPage` (3 formatos). Tests **T37–T38**.
   - *Verificable:* T37–T38 en verde, y la vista previa de impresión muestra cada formato.
-- [ ] **12. README y cierre.**
+- [x] **12. README y cierre.**
   - En el README: configurar el almacén, flujos de ubicar y reubicar, etiquetas y kardex.
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; hacer las verificaciones manuales (§12); registrar la cobertura; llenar §13 Evidencia y aplicar la Definition of Done (constitución §4).
 
@@ -504,8 +508,8 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | CA3 | Cada operación genera su movimiento en el kardex, con usuario, fecha y, en ajustes, motivo y nota. | T20–T24 |
 | CA4 | Buscar muestra las ubicaciones de un producto y, con permiso, las existencias en otras sucursales. | T16, T17, T30 |
 | CA5 | El cambio de código recalcula las ubicaciones y advierte la reimpresión de etiquetas. | T9, T37 |
-| CA6 | Todo el flujo de ubicar y reubicar se completa con una sola mano en el celular, sin teclear (solo escaneos y toques). | Verificación manual en Android y iPhone (dispositivo, fecha y responsable en §13) |
-| CA7 | Las etiquetas de ubicación (4×6 y 50×25 en la Ribetec, hoja a color en impresora normal) se leen con la cámara y con el lector, y el escaneo lleva a la ubicación correcta. | T38 + verificación manual |
+| CA6 | Todo el flujo de ubicar y reubicar se completa con una sola mano en el celular, sin teclear (solo escaneos y toques). | Verificación manual en Android y iPhone (dispositivo, fecha y responsable en §13). Se verifica antes de cerrar F8, junto con F8 CA11 (decisión del usuario, 2026-10-14) |
+| CA7 | Las etiquetas de ubicación (4×6 y 50×25 en la Ribetec, hoja a color en impresora normal) se leen con la cámara y con el lector, y el escaneo lleva a la ubicación correcta. | T38 + verificación manual en la visita a la sucursal antes de cerrar F8, junto con F8 CA6 (decisión del usuario, 2026-10-14) |
 | CA8 | `pnpm lint`, `pnpm typecheck`, `pnpm test` (con `pnpm dev:db`) y `pnpm build` pasan en limpio, incluidos los tests de F0–F6. | Salida de los comandos en §13 |
 | CA9 | Se cumple la cobertura de la cabecera. | Reporte de `jest --coverage` en §13 |
 
@@ -514,6 +518,20 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 ## 13. Evidencia
 
 *(Se completa al cerrar la fase.)*
+
+**Implementación 2026-10-14 (agente, Windows 11 + Node 24 + pnpm + Docker, con `pnpm dev:db`):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` | Los cuatro con código 0, incluidos los tests de F0–F6 (CA8). `pnpm build` solo avisa que el bundle web pasa de 500 kB (1,78 MB, 497 KB comprimido; observación de F6). |
+| Tests | 38/38 requeridos en verde. `shared`: 373 casos en 17 suites. `api`: 538 en 72 suites (`warehouse-structure`, `warehouse-tree`, `warehouse-labels`, `inventory-api-*` y `seed-demo`). `web`: 362 en 51 suites. Sin `skip`/`only`/`todo`/`xit`. Hay tests extra junto a los requeridos. |
+| Cobertura (umbral por carpeta 80 %, fijo en los `jest.config.cjs`) | `apps/api/src/modules/warehouse/**` 98,82 % líneas · 86,75 % ramas; `apps/api/src/modules/inventory/**` 99,67 % · 88,23 %; `apps/web/src/features/warehouse/**` 97,91 % · 90,98 %; `packages/shared` 99,33 % · 93,3 % (CA9). |
+| `pnpm seed:demo` dos veces (BD de desarrollo) | La primera crea el stock de §7 (11 entradas); la segunda: "Creado: nada". |
+| Alcance (constitución §4.6) | Código solo en `autoriza_codigo_en`, con las ampliaciones autorizadas en §14 (dos `jest.config.cjs` y dos tests de F3 y F6). Sin dependencias nuevas ni cambios de schema. |
+
+**Verificaciones manuales movidas a F8 (usuario, 2026-10-14):** CA6 (ubicar y reubicar con una mano en Android y iPhone) se verifica con F8 CA11, y CA7 (etiquetas de ubicación impresas leídas con la cámara y con el lector) con F8 CA6, en la visita a la sucursal antes de cerrar F8.
+
+**Cierre 2026-10-14 (usuario, Eliu Castillo):** mueve CA6 y CA7 a la visita a la sucursal antes de cerrar F8, aprueba las propuestas del agente de §14 y confirma el cierre (constitución §4.9).
 
 ---
 
@@ -537,3 +555,23 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | 2026-10-03 | Stock de demo según §7, con `ZAP0101-26-NEG` agotado en `S1` y disponible en `S2`; T24 de F1 se adapta (regresión declarada). | Propuesta del agente; revisar al aprobar |
 | 2026-10-03 | Audit de `warehouse.code_change`, `warehouse.deactivate`, `warehouse.delete` e `inventory.adjust`; 4 códigos de error nuevos. | Propuesta del agente; revisar al aprobar |
 | 2026-10-05 | El usuario aprueba la spec completa, incluidas las propuestas del agente marcadas "revisar al aprobar". Spec pasa a `LISTA`. | Usuario (chat) |
+| 2026-10-14 | Cobertura permanente: `apps/api/jest.config.cjs` mide `src/modules/warehouse/**` y `apps/web/jest.config.cjs` mide `src/features/warehouse/**` (sin `testing.ts`), con umbral de 80 % en líneas y ramas; los dos archivos se suman a `autoriza_codigo_en`. | Usuario (chat) |
+| 2026-10-14 | `GET /inventory/movements` devuelve también la `timezone` de la sucursal (`MovementPageDto`), porque la web no la conoce y el kardex muestra las fechas en esa zona. | Usuario (chat) |
+| 2026-10-14 | El inicio del almacén agrega el acceso "Ajustar" (`inventory.adjust`): abre Buscar en modo ajuste, donde se elige la variante y la ubicación (de sus ubicaciones o escaneando otra) para abrir el diálogo de ajuste. | Usuario (chat) |
+| 2026-10-14 | Regresiones declaradas: T16 de F3 (`guards.test.tsx`) pasa su ejemplo de placeholder de `/warehouse` a `/reports`, y T25 de F6 (`products-import.int.test.ts`) completa A-01-02 hasta 38 ocupadas según el stock que ya tiene. Los dos archivos se suman a `autoriza_codigo_en`; no cambia código de producción de F3 ni de F6. | Usuario (chat) |
+| 2026-10-14 | Contratos extra en `shared`, dentro del perímetro: `ZoneChangeDto`/`ContainerChangeDto`/`RackChangeDto` (respuestas de `PATCH`), `ContentNodeDto` y `NodeContentDto` (contenido de un nodo y `by-location`), `WarehouseTreeQuery`, `LocateQuery`, `ByLocationQuery`, `LocationLabelsQuery`, `StockFilter` y `StockBalanceDto`; `staging.matchCount` en el árbol. Los `Update` se escriben sin `default` para que un campo omitido no se sobrescriba. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Códigos sin indicar: el siguiente después del último usado (zonas `A`…`Z`, `AA`…`ZZ`; contenedores y racks `01`…`99`). Uno suelto toma el primer hueco si ya se usó `99`; un lote que pasaría de `99` → `STRUCTURE_FULL`. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | No se crea estructura bajo una zona o un contenedor inactivos (409 `CONFLICT`, "Reactiva primero…"). Toda escritura sobre staging, también reactivar, responde `STRUCTURE_LOCKED`. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Desactivar y borrar bloquean los racks del subárbol (`FOR UPDATE`) antes de revisar stock o historial; el historial incluye filas de stock, movimientos e ítems de carrito y de venta. `warehouse.deactivate` se audita solo si el nodo estaba activo; reactivar no se audita. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Filtros de estado por fila del nodo: `AGOTADO` y `BAJO` por el estado de la variante en la sucursal (todos sus almacenes, como F6); `EN_PISO` = filas con reservadas; `EN_STAGING` = filas de variantes que también tienen unidades en staging. `pct` con un decimal. El contenido de staging muestra `free` 0, `pct` null y nivel `none`. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Contenido: `q` busca en SKU o nombre del producto (los comodines de `LIKE` se buscan como texto); orden por SKU. `by-location` acepta `A-01-03`, `a-1-3` o `LOC:A-01-03`, solo en la sucursal actual. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Operaciones: cada rack debe ser de una sucursal del actor (si no, `BRANCH_FORBIDDEN`); `overrideCapacity: true` sin el permiso → 403 en cualquier operación; los errores de lote y de reubicar llevan `details.itemIndex`; "Todo" sin disponibles → `STOCK_INSUFFICIENT`; ubicar desde staging sin staging activo → `INVENTORY_INVALID_OPERATION`. El audit `inventory.adjust` usa la entidad `InventoryMovement` con variante, rack, dirección, cantidad, motivo y nota. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Kardex: `sku` filtra por SKU de variante o padre; `q` busca en SKU o nombre; un `locationCode` que no existe en la sucursal da una página vacía; orden `createdAt` y `id` descendentes; los días locales se calculan con `AT TIME ZONE` de Postgres. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Etiquetas: por zona, contenedor o almacén solo racks activos; con ids de rack, tal cual (incluso inactivos); un alcance sin racks → 404. La etiqueta de staging dice "Sin límite". | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Sugerencias: dentro de cada grupo, orden por `priority`, `sortOrder`, espacio libre y código; si ninguno alcanza, solo racks con espacio libre > 0. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | UI: escanear una ubicación en Buscar muestra su contenido; en "producto primero" la cantidad por defecto es lo que hay en staging y, con origen staging, no lo supera; en "ubicación primero" cada fila arranca desde staging si la variante tiene unidades ahí; "Elegir otra ubicación" vuelve a pedir el destino; el mapa abre zonas y contenedores (`<details>`); el menú de un nodo en Configurar es un diálogo; el filtro de usuario del kardex lista los usuarios de los movimientos cargados; en Staging, "Ubicar" se deshabilita si todo está en piso. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Tests: helpers `test/integration/helpers/warehouse.ts` (`warehouseOf`, `apiAs`, `createStructure`, `createProduct`, `putStock`) y datos de prueba web en `features/warehouse/testing.ts` (sin dependencias de Jest, para el typecheck de la app). Se reutiliza `choose` de `features/users`. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Durante el cierre se encontró y corrigió un error en `likePattern` (escapado de comodines de `LIKE`); T15 suma la prueba de regresión. | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | Observación (sin cambio en F7): el bundle web pasa a 1,78 MB (497 KB comprimido); sigue en pie la propuesta de F6 de cargar las pantallas por ruta. Al correr `pnpm seed:demo` en la BD de desarrollo se recrearon 5 variantes del catálogo de demo que faltaban (el seed crea lo que falta). | Propuesta del agente; aprobada por el usuario (2026-10-14) |
+| 2026-10-14 | CA6 (ubicar y reubicar con una mano en Android y iPhone) y CA7 (lectura de las etiquetas de ubicación impresas) se verifican antes de cerrar F8, junto con F8 CA11 y F8 CA6. F7 puede cerrarse sin ellas. | Usuario (chat); F8 §11 y §13 actualizados |
+| 2026-10-14 | F7 cumple la Definition of Done (con CA6 y CA7 movidos a F8 por decisión del usuario) y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |

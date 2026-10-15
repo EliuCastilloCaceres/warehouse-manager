@@ -839,7 +839,8 @@ flowchart LR
 - **Ubicar — modo "ubicación primero":** escanear la ubicación → escanear o teclear productos de forma continua (cada lectura suma 1, la cantidad es editable) → confirmar el lote.
 - **Reubicar:** escanear el origen → seleccionar SKUs y cantidades (o "todo") → escanear el destino → confirmar. Valida la capacidad del destino.
 - **Staging:** lista de pendientes de reacomodo con el atajo "Ubicar".
-- **Kardex:** historial de movimientos filtrable.
+- **Ajustar** (decisión 2026-10-14): acceso propio en el inicio del almacén, con `inventory.adjust`; también desde Buscar y desde el contenido de un rack.
+- **Kardex:** historial de movimientos filtrable, con las fechas en la zona horaria de la sucursal (la API la devuelve con la página; decisión 2026-10-14).
 
 **Criterios de aceptación**
 - La ocupación de contenedor, zona y almacén coincide siempre con la suma de sus racks (test).

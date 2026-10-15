@@ -429,11 +429,19 @@ describe('carga masiva (T18–T25)', () => {
     });
 
     it('exceder la capacidad exige permiso y casilla', async () => {
-      // A-01-02 (seed de demo, capacidad 40) con 38 ocupadas.
+      // A-01-02 (seed de demo, capacidad 40) con 38 ocupadas; desde F7 el seed ya pone stock ahí.
       const filler = await prisma.productVariant.findUniqueOrThrow({
         where: { sku: 'ZAP0101-26-NEG' },
       });
-      await receiveStock(prisma, filler.id, { userId: adminId, quantity: 38, location: 'A-01-02' });
+      const occupied = await prisma.stockLocation.aggregate({
+        where: { rack: { locationCode: 'A-01-02', warehouse: { branch: { code: 'S1' } } } },
+        _sum: { quantity: true },
+      });
+      await receiveStock(prisma, filler.id, {
+        userId: adminId,
+        quantity: 38 - (occupied._sum.quantity ?? 0),
+        location: 'A-01-02',
+      });
       const payload = (allowCapacityOverride: boolean) => ({
         allowCapacityOverride,
         rows: rows({

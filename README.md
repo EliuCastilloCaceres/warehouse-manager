@@ -50,7 +50,7 @@ El modelo está en `apps/api/prisma/schema.prisma` (diagramas en [`docs/erd.md`]
 pnpm dev:db       # si no está levantada
 pnpm db:migrate   # aplica las migraciones (init + constraints)
 pnpm db:seed      # permisos, roles, sucursales S1/S2, cajas, staging, usuarios owner y admin
-pnpm seed:demo    # opcional: zonas, racks y un catálogo de ejemplo (sin stock)
+pnpm seed:demo    # opcional: zonas, racks, un catálogo de ejemplo y stock en S1 y en el staging de S2
 ```
 
 - **Contraseñas iniciales:** antes del primer `pnpm db:seed`, cambia `OWNER_INITIAL_PASSWORD` y `ADMIN_INITIAL_PASSWORD` en `.env` (mínimo 8 caracteres). Los usuarios `owner` (Propietario) y `admin` (Administrador) deberán cambiarlas al entrar. El seed nunca restablece una contraseña que ya existe.
@@ -175,6 +175,47 @@ Reglas de la carga:
 | Hoja A4 o Carta | 24 por hoja (3×8) con imagen, nombre, variante, precio opcional y código de barras | Impresora normal |
 
 En el diálogo de impresión: márgenes "Ninguno" y escala 100 % (ver [Impresión](#impresión-tickets-y-etiquetas)).
+
+### Almacén
+
+Módulo **Almacén** (`warehouse.read`). El inicio muestra solo los accesos que permite tu rol; **Staging** indica cuántas piezas faltan por ubicar. Siempre se trabaja con el almacén de la sucursal elegida.
+
+**Configurar** (`warehouse.manage`):
+
+- **+ Zona**, **+ Contenedor** y **+ Rack** crean un nivel; sin código se usa el siguiente libre (zonas `A`, `B`…; contenedores y racks `01`…`99`). **Crear en lote** arma N contenedores con M racks de la misma capacidad, y **Racks en lote** agrega N racks a un contenedor.
+- **Color:** se elige de una paleta de 10 colores con nombre (la térmica imprime el nombre). Un rack sin color usa el de su zona. **Prioridad** de zona: menor = preferida al sugerir ubicaciones.
+- **Editar código** recalcula los códigos de ubicación de todo lo que está debajo (`A-01-03` → `D-01-03`). Antes pide confirmar: hay que reimprimir esas etiquetas, y si reutilizas un código viejo, las etiquetas viejas apuntarán al rack nuevo.
+- **Capacidad** menor que lo que ya hay: se guarda con aviso, el rack se ve en rojo y no recibe más stock salvo con `inventory.override_capacity`.
+- **Desactivar** solo si nada debajo tiene stock (si no, avisa en qué ubicaciones), y desactiva todo lo que contiene. **Reactivar** es nivel por nivel, de arriba hacia abajo. **Eliminar** solo si nunca tuvo movimientos.
+- El **staging** (`STG-01-01`) es fijo: no se edita ni se le agrega estructura. No tiene límite y no cuenta en los totales.
+
+**Mapa:** ocupación del almacén, de cada zona, contenedor y rack (verde < 70 %, ámbar 70–90 %, rojo > 90 %). Los filtros **Agotado**, **Bajo**, **En piso** y **Staging** marcan cuántas variantes coinciden en cada nivel. Toca un rack para ver su contenido.
+
+**Buscar:** escanea un producto para ver en qué ubicaciones está (staging al final) y, con `inventory.other_branches.read`, cuántas hay disponibles en las otras sucursales, con su teléfono. Escanear una ubicación muestra su contenido.
+
+**Ubicar** (`inventory.putaway`), con una mano y sin teclear:
+
+- **Producto primero:** escanea el producto, toca una sugerencia ("A-01-01 · 30 libres · ya está aquí") o escanea la ubicación, ajusta la cantidad con − / + y elige el origen: **Desde staging** (por defecto si hay piezas ahí) o **Mercancía nueva**. **Confirmar**.
+- **Ubicación primero:** escanea la ubicación y luego los productos sin parar (cada lectura suma 1); revisa la lista y **Confirmar lote**. El lote se aplica todo o nada.
+- **Staging** lista lo pendiente; **Ubicar** abre "producto primero" con esa variante.
+
+**Reubicar** (`inventory.relocate`): escanea el origen, marca los productos y sus cantidades (o **Todo**), escanea el destino y **Confirmar**. "Todo" mueve solo lo disponible: lo que está en piso se queda. Solo dentro del mismo almacén; se puede mandar a staging.
+
+Si un rack no tiene espacio aparece "A-01-02 no tiene espacio (38/40, entran 2)": con `inventory.override_capacity` puedes **Exceder capacidad** (queda marcado en el kardex); si no, **Elegir otra ubicación**.
+
+**Ajustar** (`inventory.adjust`): desde el acceso **Ajustar**, desde Buscar o desde el contenido de un rack. Elige entrada o salida, cantidad, motivo (Conteo físico, Merma o daño, Extravío, Hallazgo, Error de captura u Otro) y una nota obligatoria. Una salida solo toma piezas disponibles. Queda en el kardex y en el audit.
+
+**Kardex** (`inventory.movements.read`): todos los movimientos de la sucursal, del más reciente al más antiguo, con filtros por SKU (de variante o padre), ubicación, tipo, usuario y fechas. Las fechas y los filtros "Desde/Hasta" usan la zona horaria de la sucursal.
+
+**Etiquetas de ubicación** (`warehouse.labels`): elige el alcance (todo el almacén, zonas, contenedores o racks) y el formato; los racks inactivos solo salen si los eliges uno por uno. Máximo 500 por impresión.
+
+| Formato         | Contenido                                                                            | Impresora                  |
+| --------------- | ------------------------------------------------------------------------------------ | -------------------------- |
+| 4×6"            | QR grande, código muy grande, franja negra con el nombre del color, zona y capacidad | Ribetec RT-420ME           |
+| 50×25 mm        | QR y código                                                                          | Ribetec RT-420ME           |
+| Hoja A4 o Carta | 10 por hoja (2×5) con QR, código, zona, capacidad y banda en su color real           | Impresora normal (a color) |
+
+El QR contiene `LOC:A-01-03`: cualquier campo de escaneo lo reconoce como ubicación.
 
 ### Prueba de escáner e impresión (`/dev/scanner`)
 

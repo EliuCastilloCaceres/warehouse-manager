@@ -31,7 +31,8 @@ describe('seed de demo', () => {
     await prisma.$disconnect();
   });
 
-  it('crea estructura y catálogo sin stock, y es idempotente (T24)', async () => {
+  // T24 de F1, adaptado en F7: el seed de demo ahora también crea stock (spec F7 §1).
+  it('crea estructura, catálogo y stock, y es idempotente (T24)', async () => {
     await seedBase(prisma, { ownerPassword: 'clave-owner-1', adminPassword: 'clave-admin-1' });
 
     await seedDemo(prisma);
@@ -43,8 +44,8 @@ describe('seed de demo', () => {
       brands: 2,
       products: 4,
       variants: 14,
-      stockLocations: 0,
-      movements: 0,
+      stockLocations: 11,
+      movements: 11,
     });
 
     const racks = await prisma.rack.findMany({
@@ -89,6 +90,59 @@ describe('seed de demo', () => {
     expect(second.created).toEqual([]);
     expect((await counts(prisma)).variants).toBe(14);
     expect((await counts(prisma)).racks).toBe(24);
+  });
+
+  it('carga el stock de demo con INITIAL_LOAD y no lo duplica (T27 de F7)', async () => {
+    await seedBase(prisma, { ownerPassword: 'clave-owner-1', adminPassword: 'clave-admin-1' });
+    await seedDemo(prisma);
+
+    const rows = await prisma.stockLocation.findMany({
+      include: { variant: true, rack: { include: { warehouse: { include: { branch: true } } } } },
+    });
+    const stock = rows
+      .map(
+        (r) =>
+          `${r.rack.warehouse.branch.code} ${r.rack.locationCode} ${r.variant.sku} ${r.quantity}`,
+      )
+      .sort();
+    expect(stock).toEqual([
+      'S1 A-01-01 ZAP0101-23-NEG 3',
+      'S1 A-01-01 ZAP0101-24-NEG 3',
+      'S1 A-01-01 ZAP0101-25-NEG 4',
+      'S1 A-01-02 ZAP0101-25-CAF 1',
+      'S1 A-01-02 ZAP0101-26-CAF 2',
+      'S1 B-01-01 BOL0201-NEG 5',
+      'S1 B-01-01 BOL0201-ROJ 2',
+      'S1 C-01-01 ACC0301 10',
+      'S1 STG-01-01 ZAP0102-26-BLA 2',
+      'S2 STG-01-01 ZAP0101-26-NEG 2',
+      'S2 STG-01-01 ZAP0102-25-BLA 1',
+    ]);
+    expect(rows.every((r) => r.reservedQty === 0)).toBe(true);
+
+    const owner = await prisma.user.findUniqueOrThrow({ where: { username: 'owner' } });
+    const movements = await prisma.inventoryMovement.findMany();
+    expect(movements).toHaveLength(11);
+    expect(
+      movements.every(
+        (m) =>
+          m.type === 'INITIAL_LOAD' && m.note === 'Demo' && m.userId === owner.id && !m.fromRackId,
+      ),
+    ).toBe(true);
+
+    // ZAP0101-26-NEG: agotado en S1 y disponible en S2.
+    const zap = await prisma.stockLocation.findMany({
+      where: { variant: { sku: 'ZAP0101-26-NEG' } },
+      include: { rack: { include: { warehouse: { include: { branch: true } } } } },
+    });
+    expect(zap.map((r) => [r.rack.warehouse.branch.code, r.quantity])).toEqual([['S2', 2]]);
+
+    const second = await seedDemo(prisma);
+    expect(second.created).toEqual([]);
+    expect(await prisma.inventoryMovement.count()).toBe(11);
+    expect(await prisma.stockLocation.aggregate({ _sum: { quantity: true } })).toEqual({
+      _sum: { quantity: 35 },
+    });
   });
 
   it('sin seed base lanza "Ejecuta primero `pnpm db:seed`" y no escribe nada (T25)', async () => {
