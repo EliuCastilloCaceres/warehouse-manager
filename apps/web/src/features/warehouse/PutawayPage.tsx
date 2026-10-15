@@ -20,7 +20,7 @@ import {
   QuantityStepper,
   useCapacityGuard,
 } from './components';
-import { type ResolvedRack, stagingAvailable, useScanLookups } from './scanFlow';
+import { locationCodeOf, type ResolvedRack, stagingAvailable, useScanLookups } from './scanFlow';
 import { LOCATION_NOT_FOUND, PRODUCT_NOT_FOUND } from './SearchPage';
 import { BackLink } from './WarehouseHomePage';
 
@@ -141,9 +141,11 @@ function ProductFirst({ initialSku }: { initialSku: string | null }) {
   const onScan = async (scan: ValidScan) => {
     setMessage(null);
     if (scan.kind === 'promo') return setMessage(PROMO_SCAN_MESSAGE);
-    if (scan.kind === 'location') {
-      if (!picked) return setMessage(NOT_A_PRODUCT_MESSAGE);
-      const found = await lookups.rack(scan.code);
+    if (scan.kind === 'location' && !picked) return setMessage(NOT_A_PRODUCT_MESSAGE);
+    // Con el producto elegido, el código tecleado sin `LOC:` ("A-01-03") también es el destino.
+    const location = picked ? locationCodeOf(scan) : null;
+    if (location) {
+      const found = await lookups.rack(location);
       if (!found) return setMessage(LOCATION_NOT_FOUND);
       if (found.isStaging) return setMessage(STAGING_DESTINATION_MESSAGE);
       return setRack(found);
@@ -316,8 +318,10 @@ function LocationFirst() {
   const onScan = async (scan: ValidScan) => {
     setMessage(null);
     if (scan.kind === 'promo') return setMessage(PROMO_SCAN_MESSAGE);
-    if (scan.kind === 'location') {
-      const found = await lookups.rack(scan.code);
+    // Sin ubicación todavía, el código tecleado sin `LOC:` ("A-01-03") también es la ubicación.
+    const location = scan.kind === 'location' || !rack ? locationCodeOf(scan) : null;
+    if (location) {
+      const found = await lookups.rack(location);
       if (!found) return setMessage(LOCATION_NOT_FOUND);
       if (found.isStaging) return setMessage(STAGING_DESTINATION_MESSAGE);
       return setRack(found);

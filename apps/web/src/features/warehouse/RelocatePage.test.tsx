@@ -80,11 +80,30 @@ describe('RelocatePage (T33)', () => {
     const app = renderApp('/warehouse/relocate');
     await scan(app, 'LOC:A-01-01');
     await screen.findByRole('list', { name: 'Productos del origen' });
-    await scan(app, 'a-1-1');
+    await scan(app, 'ZAP0101-25-NEG');
     expect(await screen.findByText('Escanea el código de una ubicación')).toBeInTheDocument();
     await scan(app, 'LOC:a-1-1');
     expect(await screen.findByText(SAME_RACK_MESSAGE)).toBeInTheDocument();
     expect(callsTo(fetchMock, byLocationKey('A-01-01'))).toHaveLength(1);
     expect(callsTo(fetchMock, RELOCATE)).toHaveLength(0);
+  });
+
+  it('el código tecleado sin LOC: ("a-1-1", "A-01-02") sirve de origen y de destino', async () => {
+    const fetchMock = start();
+    const app = renderApp('/warehouse/relocate');
+    await scan(app, 'a-1-1');
+    await app.user.click(await screen.findByRole('button', { name: 'Todo' }));
+    await scan(app, 'a-1-1');
+    expect(await screen.findByText(SAME_RACK_MESSAGE)).toBeInTheDocument();
+    await scan(app, 'A-01-02');
+    expect(await screen.findByText('A-01-02')).toBeInTheDocument();
+    await app.user.click(screen.getByRole('button', { name: 'Confirmar' }));
+    await waitFor(() => expect(callsTo(fetchMock, RELOCATE)).toHaveLength(1));
+    expect(bodyOf(fetchMock)).toEqual({
+      fromRackId: origin,
+      toRackId: destination,
+      overrideCapacity: false,
+      all: true,
+    });
   });
 });

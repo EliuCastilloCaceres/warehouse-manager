@@ -206,6 +206,7 @@ describe('PutawayPage: escaneos inválidos y edición de filas', () => {
     [locateKey('ZAP0101')]: ok(makeLocate([neg, caf])),
     [locateKey('NOEXISTE')]: () => apiError(404, 'NOT_FOUND', 'No se encontró el producto.'),
     [locateKey('FALLA')]: () => apiError(500, 'INTERNAL_ERROR', 'Error del servidor.'),
+    [locateKey('A-01-02')]: () => apiError(404, 'NOT_FOUND', 'No se encontró el producto.'),
     [byLocationKey('Z-01-01')]: () => apiError(404, 'NOT_FOUND', 'No existe.'),
     [byLocationKey('A-01-09')]: () => apiError(500, 'INTERNAL_ERROR', 'Error del servidor.'),
   };
@@ -215,6 +216,9 @@ describe('PutawayPage: escaneos inválidos y edición de filas', () => {
     const app = renderApp('/warehouse/putaway');
     await scan(app, PRODUCT, 'LOC:A-01-02');
     expect(await screen.findByText('Escanea el código de un producto')).toBeInTheDocument();
+    // Sin producto elegido, "A-01-02" tecleado se busca como SKU.
+    await scan(app, PRODUCT, 'A-01-02');
+    expect(await screen.findByText('No se encontró el producto')).toBeInTheDocument();
     await scan(app, PRODUCT, 'PROMO:DESC10');
     expect(await screen.findByText(/es de una promoción/)).toBeInTheDocument();
     await scan(app, PRODUCT, 'NOEXISTE');
@@ -231,7 +235,8 @@ describe('PutawayPage: escaneos inválidos y edición de filas', () => {
     await scan(app, PRODUCT, 'LOC:A-01-09');
     expect(await screen.findAllByText('Error del servidor.')).not.toHaveLength(0);
 
-    await scan(app, PRODUCT, 'LOC:A-01-02');
+    // Con el producto elegido, el destino tecleado sin LOC: también sirve.
+    await scan(app, PRODUCT, 'a-1-2');
     await screen.findByText('A-01-02');
     await app.user.click(screen.getByRole('button', { name: 'Cambiar' }));
     expect(await screen.findByRole('list', { name: 'Sugerencias' })).toBeInTheDocument();
@@ -252,13 +257,17 @@ describe('PutawayPage: escaneos inválidos y edición de filas', () => {
     await scan(app, FIELD, 'LOC:Z-01-01');
     expect(await screen.findByText('No existe esa ubicación en la sucursal')).toBeInTheDocument();
 
-    await scan(app, FIELD, 'LOC:A-01-02');
+    // Sin ubicación todavía, la tecleada sin LOC: también sirve.
+    await scan(app, FIELD, 'a-1-2');
     await screen.findByText('A-01-02');
     await scan(app, FIELD, 'NOEXISTE');
     expect(await screen.findByText('No se encontró el producto')).toBeInTheDocument();
     await scan(app, FIELD, 'ZAP0101');
     const variants = await screen.findByRole('list', { name: 'Variantes' });
     await app.user.click(within(variants).getByRole('button', { name: /ZAP0101-26-CAF/ }));
+    // Ya con ubicación, "A-01-02" tecleado se busca como SKU.
+    await scan(app, FIELD, 'A-01-02');
+    expect(await screen.findByText('No se encontró el producto')).toBeInTheDocument();
     await scan(app, FIELD, 'ZAP0101-25-NEG');
     const list = await screen.findByRole('list', { name: 'Productos a ubicar' });
     await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(2));

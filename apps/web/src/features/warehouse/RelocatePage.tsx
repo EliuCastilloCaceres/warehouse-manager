@@ -11,7 +11,7 @@ import {
   QuantityStepper,
   useCapacityGuard,
 } from './components';
-import { type ResolvedRack, useScanLookups } from './scanFlow';
+import { locationCodeOf, type ResolvedRack, useScanLookups } from './scanFlow';
 import { LOCATION_NOT_FOUND } from './SearchPage';
 import { BackLink } from './WarehouseHomePage';
 
@@ -42,17 +42,18 @@ export function RelocatePage() {
   const onScan = async (scan: ValidScan) => {
     setMessage(null);
     if (scan.kind === 'promo') return setMessage(PROMO_SCAN_MESSAGE);
-    if (scan.kind !== 'location') return setMessage(NOT_A_LOCATION_MESSAGE);
+    const code = locationCodeOf(scan);
+    if (!code) return setMessage(NOT_A_LOCATION_MESSAGE);
     if (!origin) {
       try {
-        setOrigin(await inventoryApi.byLocation(scan.code));
+        setOrigin(await inventoryApi.byLocation(code));
       } catch {
         setMessage(LOCATION_NOT_FOUND);
       }
       return;
     }
-    if (scan.code === origin.node.code) return setMessage(SAME_RACK_MESSAGE);
-    const found = await lookups.rack(scan.code);
+    if (code === origin.node.code) return setMessage(SAME_RACK_MESSAGE);
+    const found = await lookups.rack(code);
     if (!found) return setMessage(LOCATION_NOT_FOUND);
     setDestination(found);
   };

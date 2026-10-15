@@ -406,6 +406,7 @@ Con un SKU padre se listan sus variantes y se elige una.
 12. **Escaneos que no son producto ni ubicación** (promoción): "Este código es de una promoción, no de un producto".
 13. **Dos usuarios ubican en el mismo rack a la vez:** los bloqueos de F2 serializan; uno puede recibir `RACK_CAPACITY_EXCEEDED`.
 14. **Kardex por fecha:** `from`/`to` se interpretan en la zona horaria de la sucursal (un movimiento a las 23:30 hora local pertenece a ese día).
+15. **Ubicación tecleada sin `LOC:`** (`A-01-03`, `a-1-3`): `classifyScan` la toma como SKU, pero cuenta como ubicación en los pasos que esperan una: origen y destino de Reubicar, destino de "producto primero" con el producto ya elegido y ubicación de "ubicación primero" mientras no hay una. En los demás pasos sigue siendo un SKU.
 
 ---
 
@@ -575,3 +576,5 @@ No se permiten `skip`, `only`, `todo` ni `xit` (constitución P4). Los tests de 
 | 2026-10-14 | Observación (sin cambio en F7): el bundle web pasa a 1,78 MB (497 KB comprimido); sigue en pie la propuesta de F6 de cargar las pantallas por ruta. Al correr `pnpm seed:demo` en la BD de desarrollo se recrearon 5 variantes del catálogo de demo que faltaban (el seed crea lo que falta). | Propuesta del agente; aprobada por el usuario (2026-10-14) |
 | 2026-10-14 | CA6 (ubicar y reubicar con una mano en Android y iPhone) y CA7 (lectura de las etiquetas de ubicación impresas) se verifican antes de cerrar F8, junto con F8 CA11 y F8 CA6. F7 puede cerrarse sin ellas. | Usuario (chat); F8 §11 y §13 actualizados |
 | 2026-10-14 | F7 cumple la Definition of Done (con CA6 y CA7 movidos a F8 por decisión del usuario) y el usuario confirma el cierre. Spec pasa a `COMPLETA`. | Usuario (chat) |
+| 2026-10-15 | Regresión tras el cierre: un código de ubicación tecleado sin `LOC:` llegaba como SKU (F1 §6.8) y Reubicar respondía "Escanea el código de una ubicación". `locationCodeOf` (`scanFlow.ts`) lo acepta como ubicación en los pasos que esperan una (§9.15). Fuera de ellos sigue siendo un SKU, para no confundir un SKU con forma de ubicación (p. ej. `AB-12-34`) en Buscar ni en el POS. T31–T33 suman los casos. | Usuario (chat), en las pruebas del almacén con el celular; propuesta del agente aprobada por el usuario (2026-10-15) |
+| 2026-10-15 | Con la cámara, Reubicar respondía "El destino debe ser distinto del origen" al escanear el destino: la cámara repetía la lectura del origen. Era una regresión del adaptador de cámara de F3, corregida y registrada en F3 §13. | Usuario (chat), en las pruebas del almacén con el celular |

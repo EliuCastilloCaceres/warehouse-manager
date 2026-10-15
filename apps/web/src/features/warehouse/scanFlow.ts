@@ -1,13 +1,29 @@
-import type { LocateResultDto, LocateVariantDto } from '@warehouse-manager/shared';
+import {
+  type LocateResultDto,
+  type LocateVariantDto,
+  parseLocationCode,
+} from '@warehouse-manager/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { ApiError } from '@/shared/api/errors';
+import type { ValidScan } from '@/shared/scan/ScanInput';
 import { inventoryApi } from './api';
 
 export interface ResolvedRack {
   id: string;
   locationCode: string;
   isStaging: boolean;
+}
+
+/**
+ * Código de ubicación de la lectura, o `null`. Además del QR (`LOC:A-01-03`) acepta el código
+ * tecleado sin prefijo (`A-01-03`, `a-1-3`), que `classifyScan` toma como SKU: úsese solo en los
+ * pasos que esperan una ubicación.
+ */
+export function locationCodeOf(scan: ValidScan): string | null {
+  if (scan.kind === 'location') return scan.code;
+  if (scan.kind === 'product') return parseLocationCode(scan.code)?.code ?? null;
+  return null;
 }
 
 /** Disponibles de la variante en staging (lo que se puede ubicar "desde staging"). */
