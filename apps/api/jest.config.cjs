@@ -39,7 +39,7 @@ module.exports = {
     },
   ],
   // F1: seeds + password.ts · F2: core, auth e inventory · F4: users · F5: settings · F6: products
-  // · F7: warehouse.
+  // · F7: warehouse · F8: pos.
   collectCoverageFrom: [
     '<rootDir>/prisma/seed/**/*.ts',
     '<rootDir>/src/core/**/*.ts',
@@ -49,6 +49,7 @@ module.exports = {
     '<rootDir>/src/modules/settings/**/*.ts',
     '<rootDir>/src/modules/products/**/*.ts',
     '<rootDir>/src/modules/warehouse/**/*.ts',
+    '<rootDir>/src/modules/pos/**/*.ts',
     '!<rootDir>/src/**/*.test.ts',
   ],
   coverageThreshold: {
@@ -61,5 +62,6 @@ module.exports = {
     './src/modules/settings/': { lines: 80, branches: 80 },
     './src/modules/products/': { lines: 80, branches: 80 },
     './src/modules/warehouse/': { lines: 80, branches: 80 },
+    './src/modules/pos/': { lines: 80, branches: 80 },
   },
 };

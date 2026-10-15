@@ -74,6 +74,25 @@ describe('códigos de F6 (T7 de F6)', () => {
   });
 });
 
+describe('códigos de F8 (T4 de F8)', () => {
+  it('los 10 códigos nuevos existen', () => {
+    const nuevos = [
+      'NO_OPEN_CASH_SESSION',
+      'CASH_SESSION_ALREADY_OPEN',
+      'CASH_SESSION_CLOSED',
+      'CASH_SESSION_HAS_OPEN_CARTS',
+      'CART_LIMIT_REACHED',
+      'CART_NOT_EDITABLE',
+      'CART_EMPTY',
+      'VARIANT_INACTIVE',
+      'PAYMENT_TOTAL_MISMATCH',
+      'SALE_ALREADY_CANCELLED',
+    ];
+    expect(nuevos).toHaveLength(10);
+    for (const code of nuevos) expect(ErrorCode.options).toContain(code);
+  });
+});
+
 describe('códigos de F7 (T5 de F7)', () => {
   it('los 4 códigos nuevos existen', () => {
     const nuevos = [

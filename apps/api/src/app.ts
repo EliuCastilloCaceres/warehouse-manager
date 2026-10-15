@@ -28,6 +28,10 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { inventoryRoutes } from './modules/inventory/inventory.routes.js';
+import { posCartsRoutes } from './modules/pos/carts.routes.js';
+import { posRoutes } from './modules/pos/pos.routes.js';
+import { posSalesRoutes } from './modules/pos/sales.routes.js';
+import { posSessionsRoutes } from './modules/pos/sessions.routes.js';
 import { productImagesRoutes } from './modules/products/images.routes.js';
 import { productImportRoutes } from './modules/products/import.routes.js';
 import { productLabelsRoutes } from './modules/products/labels.routes.js';
@@ -108,6 +112,10 @@ export async function buildApp(config: AppConfig, deps: AppDeps = {}): Promise<F
       await api.register(structureRoutes);
       await api.register(locationLabelsRoutes);
       await api.register(inventoryRoutes, { prefix: '/inventory' });
+      await api.register(posRoutes, { prefix: '/pos' });
+      await api.register(posSessionsRoutes, { prefix: '/pos' });
+      await api.register(posCartsRoutes, { prefix: '/pos' });
+      await api.register(posSalesRoutes, { prefix: '/pos' });
       await deps.registerExtra?.(api);
     },
     { prefix: '/api/v1' },

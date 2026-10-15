@@ -14,6 +14,13 @@ import { BranchProvider } from '@/features/branch/BranchProvider';
 import { SelectBranchPage } from '@/features/branch/SelectBranchPage';
 import { ScannerTestPage } from '@/features/dev/ScannerTestPage';
 import { HomePage } from '@/features/home/HomePage';
+import { BranchCartsPage } from '@/features/pos/BranchCartsPage';
+import { CheckoutPage } from '@/features/pos/CheckoutPage';
+import { CloseSessionPage } from '@/features/pos/CloseSessionPage';
+import { PosHomePage } from '@/features/pos/PosHomePage';
+import { PosRegisterPage } from '@/features/pos/PosRegisterPage';
+import { PosSalePage } from '@/features/pos/PosSalePage';
+import { SessionSalesPage } from '@/features/pos/SessionSalesPage';
 import { BulkImportPage } from '@/features/products/BulkImportPage';
 import { LabelsPage } from '@/features/products/LabelsPage';
 import { ProductFormPage } from '@/features/products/ProductFormPage';
@@ -38,7 +45,7 @@ import { AppLayout } from './AppLayout';
 import { MODULES } from './modules';
 
 /** Módulos con pantallas propias; los demás siguen como "Próximamente". */
-const IMPLEMENTED = new Set(['/users', '/settings', '/products', '/warehouse']);
+const IMPLEMENTED = new Set(['/users', '/settings', '/products', '/warehouse', '/pos']);
 
 /** `/warehouse/*`: cada pantalla con su permiso (spec F7 §3). */
 const WAREHOUSE_PAGES: readonly (readonly [path: string, PermissionCode, ReactNode])[] = [
@@ -51,6 +58,17 @@ const WAREHOUSE_PAGES: readonly (readonly [path: string, PermissionCode, ReactNo
   ['warehouse/movements', 'inventory.movements.read', <MovementsPage />],
   ['warehouse/setup', 'warehouse.manage', <SetupPage />],
   ['warehouse/labels', 'warehouse.labels', <LocationLabelsPage />],
+];
+
+/** `/pos/*` (spec F8 §3): todo con `pos.sell`; el corte, además, con `pos.session.close`. */
+const POS_PAGES: readonly (readonly [path: string, PermissionCode, ReactNode])[] = [
+  ['pos', 'pos.sell', <PosHomePage />],
+  ['pos/sell', 'pos.sell', <PosSalePage />],
+  ['pos/carts', 'pos.sell', <BranchCartsPage />],
+  ['pos/register', 'pos.sell', <PosRegisterPage />],
+  ['pos/checkout/:cartId', 'pos.sell', <CheckoutPage />],
+  ['pos/sales', 'pos.sell', <SessionSalesPage />],
+  ['pos/close', 'pos.session.close', <CloseSessionPage />],
 ];
 
 /** Sesión y sucursal viven dentro del router para poder navegar. */
@@ -135,7 +153,7 @@ export const routes: RouteObject[] = [
                           </RequirePermission>
                         ),
                       },
-                      ...WAREHOUSE_PAGES.map(([path, perm, element]) => ({
+                      ...[...WAREHOUSE_PAGES, ...POS_PAGES].map(([path, perm, element]) => ({
                         path,
                         element: <RequirePermission perm={perm}>{element}</RequirePermission>,
                       })),

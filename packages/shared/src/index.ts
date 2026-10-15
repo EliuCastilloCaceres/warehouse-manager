@@ -7,6 +7,7 @@ export * from './locationCode.js';
 export * from './money.js';
 export * from './pagination.js';
 export * from './permissions.js';
+export * from './pos.js';
 export * from './productImport.js';
 export * from './products.js';
 export * from './scanClassifier.js';

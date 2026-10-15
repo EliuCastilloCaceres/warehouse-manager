@@ -1,7 +1,7 @@
 ---
 id: fase-08
 titulo: Punto de venta (POS)
-estado: LISTA
+estado: EN_PROGRESO
 depende_de: [fase-05, fase-07]
 autoriza_codigo_en:
   - "apps/api/src/modules/pos/**"
@@ -18,6 +18,9 @@ autoriza_codigo_en:
   - "apps/web/src/features/pos/**"
   - "apps/web/src/features/settings/previewTotals.ts"
   - "apps/web/src/app/routes.tsx"
+  - "apps/web/src/app/AppLayout.test.tsx"
+  - "apps/api/jest.config.cjs"
+  - "apps/web/jest.config.cjs"
   - "README.md"
   - "docs/plan/plan.md"
 fuera_de_alcance:
@@ -31,7 +34,7 @@ fuera_de_alcance:
   - "Cambios en InventoryService (F2), en la consulta locate de F7 o en los componentes de ticket de F5"
   - "Cambios a schema.prisma o migraciones fuera de los declarados en F1 (Sale.cashierId, Cart.branchId, Cart.number y sus índices)"
 tests_requeridos_total: 36
-tests_requeridos_en_verde: 0
+tests_requeridos_en_verde: 36
 cobertura_minima: "100% de los tests de esta spec en verde; ≥ 80% (líneas y ramas) en apps/api/src/modules/pos/**, apps/web/src/features/pos/** y packages/shared (se mantiene)"
 definition_of_done: pendiente
 bloqueado_por: []
@@ -60,13 +63,13 @@ Referencias: plan §1.2 (POS), §3 (convenciones), §4.2 (`CashSession`, `Cart`,
 3. Endpoints de caja, carritos, partidas, cobro, ticket, historial de la caja, cancelación, búsqueda y datos de ticket de la sucursal.
 4. UI del POS: Atender (venta), barra de carritos, carritos de la sucursal, caja para cobrar, cobro, ticket, historial, cancelación y corte.
 
-**Fuera de alcance:** ver la cabecera. **Regresión declarada de F5:** `previewTotals` (vista previa del ticket en Ajustes) pasa a delegar en `computeSaleTotals` de `shared`, como F5 anunció; sus tests (T22–T23 de F5) siguen en verde sin cambios, porque la regla da los mismos montos. Es el único cambio permitido sobre entregables de F5.
+**Fuera de alcance:** ver la cabecera. **Regresión declarada de F5:** `previewTotals` (vista previa del ticket en Ajustes) pasa a delegar en `computeSaleTotals` de `shared`, como F5 anunció; sus tests (T22–T23 de F5) siguen en verde sin cambios, porque la regla da los mismos montos. Es el único cambio permitido sobre entregables de F5. **Regresión declarada de F3** (autorizada el 2026-10-15): T18 de F3 (`AppLayout.test.tsx`) usa `/reports` como ejemplo de módulo "Próximamente", porque F8 implementa `/pos`. Solo cambia ese test; no cambia código de producción de F3.
 
 ---
 
 ## 2. Modelo de datos afectado
 
-**Cambios en F1** (F1 está `LISTA` sin implementar; se aplican en su spec, decisiones del usuario 2026-10-05):
+**Cambios en F1** (decisiones del usuario 2026-10-05; ya implementados y cerrados en F1, que está `COMPLETA`: columnas en `schema.prisma` e índices en la migración `constraints`):
 
 | Cambio | Detalle |
 |---|---|
@@ -102,11 +105,13 @@ Usa además `CashRegister`, `CashSession`, `CartItem`, `SaleItem`, `Payment`, `B
 | Número corto | Se asigna dentro de la transacción de alta con un bloqueo transaccional por sucursal (`pg_advisory_xact_lock`), así dos altas simultáneas no chocan. Si los 999 están ocupados → 409 `CONFLICT` (no ocurre en la práctica). Se muestra como "Carrito #12" en la barra de carritos del vendedor, en la lista de carritos de la sucursal y en el cobro. `GET /pos/carts?number=12` lo busca. |
 | Verificación en caja | Decisión del usuario (opción "opcional pero visible"). En el cobro, el cajero escanea las piezas con `ScanInput` (`captureHid`): una lectura de producto que coincide con el SKU o el código de barras de una partida suma 1 a sus verificadas, hasta su cantidad ("2 de 3 verificadas"); una pieza de más de esa partida avisa "Ya verificaste todas las piezas de esta partida"; una que no está en el carrito avisa "Este producto no está en el carrito" (no se agrega sola); un SKU padre de un producto variable pide escanear la etiqueta de la variante. El estado es del cliente (no se guarda mientras se verifica). Si faltan piezas, "Confirmar cobro" pide confirmar "Faltan N piezas por verificar. ¿Cobrar de todos modos?". El cobro envía `verifiedUnits`; si es menor que las unidades del carrito, el servidor registra `pos.checkout.unverified` en el audit (`saleId`, `verifiedUnits`, `totalUnits`); si es mayor → 400 en `verifiedUnits`. |
 | Carrito nuevo | `POST /pos/carts`: si el usuario ya tiene un `ACTIVE` vacío, se reutiliza (200, con la etiqueta nueva si se envía); si tiene uno con partidas, ese pasa a `SUSPENDED` (con el límite) y se crea otro `ACTIVE` (201). |
+| Carrito en Atender | Decisión del usuario (2026-10-15). Atender no crea carrito al abrirse: si el vendedor no tiene un `ACTIVE`, el primer "Agregar" llama a `POST /pos/carts` y luego agrega la partida, y desde ahí se muestra "Carrito #12". Así no se apartan números para clientes que solo preguntan. [+] de la barra de carritos sigue creando uno a mano. |
 | Retomar | `POST /pos/carts/:id/resume`: el `ACTIVE` actual del dueño pasa a `SUSPENDED` si tiene partidas o se descarta si está vacío; el retomado pasa a `ACTIVE`. Todo en una transacción; el número de suspendidos no cambia. |
 | Límite de suspendidos | 5 por vendedor y sucursal (decisión del usuario). Se cuenta dentro de la transacción con un bloqueo transaccional por (sucursal, vendedor) (`pg_advisory_xact_lock`); el sexto → 409 `CART_LIMIT_REACHED`. |
 | Agregar partida | `POST /pos/carts/:id/items` con `{variantId, sourceRackId, quantity}`: la variante debe estar efectivamente activa (si no → 409 `VARIANT_INACTIVE`); el rack debe ser de un almacén de la sucursal del carrito (si no → 400 en `sourceRackId`); `InventoryService.pick` con `reference: { type: 'CART', id }`. Si ya existe una partida con la misma variante y el mismo rack, se suma a ella. Staging se acepta como origen. |
 | Cambiar cantidad | `PATCH …/items/:itemId` con `quantity`: si sube, `pick` de la diferencia; si baja, se libera la diferencia según `releaseTo` (`RACK` → `release`, `RETURN_TO_RACK`; `STAGING` → `moveReservedToStaging`, `TO_STAGING`; por defecto `RACK`). |
 | Quitar o descartar | `DELETE …/items/:itemId?releaseTo=` libera la partida completa. `POST /pos/carts/:id/discard` con `releaseTo` libera todas las partidas con la misma acción y deja el carrito `DISCARDED`. |
+| Partida tomada de staging | Decisión del usuario (2026-10-15). Si el `sourceRackId` de la partida es staging, `releaseTo: STAGING` se aplica como `RACK` (`release`, `RETURN_TO_RACK`): la pieza queda disponible en staging. Vale al bajar la cantidad, al quitar, al descartar y en `release-all`. La hoja de Quitar muestra una sola opción: "Regresar a staging (STG-01-01)". |
 | Descuentos | Por partida (`CartItem.discount`) y global (`Cart.discount`), en centavos, solo con `pos.discount` (si no → 403 `FORBIDDEN` con `details.permission`). La UI puede capturar un porcentaje y convertirlo con `applyBasisPoints`. Un descuento de partida no supera `unitPrice × quantity`; el global no supera Σ de las partidas ya descontadas (400 en `discount`). Si una partida baja de cantidad, su descuento se recorta al nuevo importe; si el total de partidas baja, el global se recorta igual. |
 | Impuestos | Decisión del usuario: se calculan **una vez sobre el total** con `computeSaleTotals` (§5). Con IVA incluido: `total = subtotal − descuentos` e `IVA = total − redondeo(total × 10000 ÷ (10000 + bp))`. Sin IVA incluido: `IVA = applyBasisPoints(subtotal − descuentos, bp)` y `total = subtotal − descuentos + IVA`. Redondeo a medio hacia arriba con aritmética entera. Cumple `sale_total_check` (F1). |
 | Pagos | De 1 a 3, a lo sumo uno por método. Σ `amount` = `total` (si no → 400 `PAYMENT_TOTAL_MISMATCH` con `details: { total, paid }`). `CASH` admite `received ≥ amount` y guarda `change = received − amount`; tarjeta y transferencia no llevan `received` y admiten `reference` opcional (1–60). Con `total = 0` no se envían pagos. |
@@ -122,7 +127,7 @@ Usa además `CashRegister`, `CashSession`, `CartItem`, `SaleItem`, `Payment`, `B
 | Sesión cerrada | Cobrar con una sesión cerrada, o cancelar una venta de una sesión cerrada → 409 `CASH_SESSION_CLOSED`. La web, ante ese código, avisa "La caja se cerró" y lleva a elegir caja para cobrar. |
 | Búsqueda | `GET /pos/lookup?code=` (`pos.sell`) devuelve el `LocateResultDto` de F7 (variante o SKU padre, ubicaciones con disponibles, precio efectivo y `otherBranches` con `inventory.other_branches.read`). No exige `warehouse.read`. |
 | QR de promoción | Decisión de F5. Una lectura `promo` abre un aviso con el texto; si coincide con `promoQrText` de la sucursal, muestra también `promoQrCaption`. Con `pos.discount` ofrece "Aplicar descuento", que abre el descuento global del carrito activo para capturarlo a mano. El código no se valida ni se guarda. |
-| Rutas web | Guard `pos.sell`. `/pos` (Atender: venta; no pide caja), `/pos/carts` (carritos de la sucursal), `/pos/register` (caja para cobrar: abrir o "Cobrar en esta caja"), `/pos/checkout/:cartId` (sin caja en el dispositivo o con su sesión cerrada → `/pos/register?next=`), `/pos/sales` (historial de la caja del dispositivo) y `/pos/close` (corte de esa caja). La caja del dispositivo se guarda en `wm.pos.register.<branchId>`. |
+| Rutas web | Guard `pos.sell`. `/pos` (inicio del POS: [Atender], [Cobrar] y "Mi caja"), `/pos/sell` (Atender: venta; no pide caja), `/pos/carts` (carritos de la sucursal), `/pos/register` (caja para cobrar: abrir o "Cobrar en esta caja"), `/pos/checkout/:cartId` (sin caja en el dispositivo o con su sesión cerrada → `/pos/register?next=`), `/pos/sales` (historial de la caja del dispositivo) y `/pos/close` (corte de esa caja). La caja del dispositivo se guarda en `wm.pos.register.<branchId>`. |
 | Consultas web | TanStack Query: `['pos-registers', branchId]`, `['pos-session', id]`, `['pos-carts', branchId, scope]`, `['cart', id]`, `['pos-lookup', code]`, `['pos-sales', sessionId]`. Toda mutación de carrito invalida el carrito, la lista de carritos y `pos-lookup`. La lista de carritos de la sucursal se refresca cada 15 s (`refetchInterval`) para ver los de otros vendedores. |
 | Audit | `pos.session.open`, `pos.session.close`, `pos.carts.release_all`, `pos.checkout.unverified` y `pos.sale.cancel`. Reservas, ventas y cancelaciones quedan además en el kardex. |
 
@@ -294,9 +299,9 @@ Todos bajo `/api/v1/pos`, con tag `pos`, `branchScoped`. Las respuestas de error
 
 ## 7. Pantallas (wireframe en texto)
 
-**Inicio del POS**: dos accesos grandes, [Atender] (todos con `pos.sell`) y [Cobrar] (carritos de la sucursal), más "Mi caja" (historial y corte) si el dispositivo tiene caja.
+**Inicio del POS (`/pos`)**: dos accesos grandes, [Atender] (`/pos/sell`, todos con `pos.sell`) y [Cobrar] (`/pos/carts`, carritos de la sucursal), más "Mi caja" (historial y corte) si el dispositivo tiene caja. Es la pantalla a la que lleva el módulo POS del menú.
 
-**Atender (`/pos`)**, móvil:
+**Atender (`/pos/sell`)**, móvil:
 
 ```
 ┌──────────────────────────────┐
@@ -326,7 +331,7 @@ Todos bajo `/api/v1/pos`, con tag `pos`, `branchScoped`. Las respuestas de error
 
 Sin cajas abiertas en la sucursal, arriba aparece "No hay cajas abiertas" (con [Abrir caja] si tiene `pos.session.open`) y "Agregar" se deshabilita. Si la variante elegida no tiene disponibles aquí, "En otras sucursales" se muestra arriba de las ubicaciones y en negritas. En escritorio, búsqueda y carrito van en dos columnas. [Cobrar] lleva al cobro de ese carrito (y, si el dispositivo no tiene caja, primero a elegirla).
 
-**Quitar** (hoja inferior): "¿Qué hacemos con el producto?" → [Regresar a su ubicación (A-01-01)] · [Enviar a staging]. Bajar la cantidad con [−] muestra la misma hoja.
+**Quitar** (hoja inferior): "¿Qué hacemos con el producto?" → [Regresar a su ubicación (A-01-01)] · [Enviar a staging]. Bajar la cantidad con [−] muestra la misma hoja. Si la partida se tomó de staging, la hoja muestra solo [Regresar a staging (STG-01-01)].
 
 **Suspender** (diálogo): etiqueta ("Señora vestido rojo") y nombre del cliente, opcionales. Con 5 suspendidos, el botón se deshabilita con "Ya tienes 5 carritos suspendidos".
 
@@ -417,39 +422,40 @@ El corte impreso (80 mm) lleva caja, quién abrió y cerró y cuándo, fondo, ve
 
 ## 9. TODOs (en orden, verificables)
 
-- [ ] **1. Verificar los cambios de F1.**
+- [x] **1. Verificar los cambios de F1.**
   - `Sale.cashierId`, `Cart.branchId`, `Cart.number`, `cart_one_active_per_user_branch` y `cart_number_open_per_branch` ya existen: los implementa F1, que los incluye en su spec (§2). F8 no toca `schema.prisma` ni migraciones.
   - *Verificable:* F1 T15 (paridad de `CartDto` y `SaleDto`) y T18 (índice nuevo) en verde.
-- [ ] **2. Contratos.**
+- [x] **2. Contratos.**
   - `shared/pos.ts` (`computeSaleTotals`, `computeChange`, `formatFolio`, esquemas y DTOs) y los 10 códigos de error (también en la API). Tests **T1–T4**.
   - *Verificable:* T1–T4 en verde.
-- [ ] **3. API: caja.**
+- [x] **3. API: caja.**
   - `sessions.service.ts` y `sessions.routes.ts` (cajas del POS, abrir, detalle, historial, cerrar y resumen); `GET /pos/branch`; registrar en `app.ts`. Tests **T5–T7** y **T21**.
   - *Verificable:* T5–T7 y T21 en verde.
-- [ ] **4. API: carritos y partidas.**
+- [x] **4. API: carritos y partidas.**
   - `carts.service.ts` y `carts.routes.ts` (listar, crear, liberar todos, detalle, editar, suspender, retomar, descartar, partidas y descuentos). Tests **T8–T13**.
   - *Verificable:* T8–T13 en verde.
-- [ ] **5. API: búsqueda.**
+- [x] **5. API: búsqueda.**
   - `GET /pos/lookup` sobre `inventory.queries.locate()`. Test **T20**.
   - *Verificable:* T20 en verde.
-- [ ] **6. API: cobro, ticket, historial y cancelación.**
+- [x] **6. API: cobro, ticket, historial y cancelación.**
   - `checkout.service.ts`, `sales.service.ts` y `sales.routes.ts`. Tests **T14–T19** y **T22**.
   - *Verificable:* T14–T19 y T22 en verde.
-- [ ] **7. Vista previa de Ajustes.**
+- [x] **7. Vista previa de Ajustes.**
   - `previewTotals` delega en `computeSaleTotals` (regresión declarada de F5).
   - *Verificable:* F5 T22–T23 en verde.
-- [ ] **8. UI: caja y Atender.**
+- [x] **8. UI: caja y Atender.**
   - `PosHomePage`, `PosRegisterPage`, `PosSalePage` (búsqueda, selector de talla y color, otras sucursales, promoción), `CartPanel`, `CartBar` y los guards. Tests **T23–T28**.
   - *Verificable:* T23–T28 en verde.
-- [ ] **9. UI: carritos de la sucursal, cobro y ticket.**
+- [x] **9. UI: carritos de la sucursal, cobro y ticket.**
   - `BranchCartsPage` (con búsqueda por número), `CheckoutPage` (con verificación por escaneo), `SaleTicket`, impresión automática y "Ajustes del ticket". Tests **T29–T32** y **T36**.
   - *Verificable:* T29–T32 y T36 en verde.
-- [ ] **10. UI: historial, cancelación y corte.**
+- [x] **10. UI: historial, cancelación y corte.**
   - `SessionSalesPage`, `CancelSaleDialog`, `CloseSessionPage` y `CashCloseTicket`. Tests **T33–T35**.
   - *Verificable:* T33–T35 en verde.
 - [ ] **11. README y cierre.**
   - En el README: abrir caja, "Atender" con varios vendedores, cobro desde cualquier caja abierta, impresión del ticket (impresora del sistema, 80 mm, márgenes en 0), cancelación y corte.
   - Ejecutar `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build`; hacer las verificaciones manuales (§11); registrar la cobertura; llenar §12 Evidencia y aplicar la Definition of Done (constitución §4).
+  - *Estado 2026-10-15:* README, comandos y cobertura hechos (§12). Pendientes: las verificaciones manuales de CA6 y CA11 en la visita a la sucursal y la confirmación de cierre del usuario.
 
 ---
 
@@ -469,7 +475,7 @@ Los marcados con "int" corren contra `postgres-test` con `app.inject`, sobre el 
 | T8 | `int` · `pos-carts.int.test.ts` | Sin cajas abiertas en la sucursal, crear carrito → 409 `NO_OPEN_CASH_SESSION`; con una abierta → `ACTIVE` con `branchId` y `number` 1; los siguientes de la sucursal (de cualquier vendedor) reciben 2, 3…; tras cobrar o descartar el #1, el siguiente carrito nuevo recibe 1; suspender y retomar conservan el número; crear otro teniendo el activo vacío → 200 con el mismo id; con partidas → el anterior pasa a `SUSPENDED` y el nuevo es `ACTIVE`; con 5 suspendidos, crear otro con partidas en el activo → 409 `CART_LIMIT_REACHED`; otro vendedor sí puede suspender; un segundo `ACTIVE` del mismo usuario en la sucursal insertado directo en BD → falla por `cart_one_active_per_user_branch`. |
 | T9 | `int` · `pos-carts.int.test.ts` | Suspender guarda etiqueta y cliente y conserva las reservas (`reservedQty` igual); suspender un carrito vacío → 409 `CART_EMPTY`; retomar (dueño) → el retomado `ACTIVE` y el activo con partidas `SUSPENDED` (o `DISCARDED` si estaba vacío); suspender o retomar el carrito de otro vendedor → 403. |
 | T10 | `int` · `pos-cart-items.int.test.ts` | Agregar → movimiento `PICK` con `reference` `CART`, `reservedQty` +n y `unitPrice` = precio efectivo (con `priceOverride`); la misma variante y rack se suma a la partida; desde staging → OK; más que lo disponible → 409 `STOCK_INSUFFICIENT`; variante desactivada → 409 `VARIANT_INACTIVE`; rack de `S2` → 400 en `sourceRackId`; sin cajas abiertas → 409 `NO_OPEN_CASH_SESSION`; tras cambiar el precio del producto, la partida conserva el suyo. |
-| T11 | `int` · `pos-cart-items.int.test.ts` | Subir cantidad → `PICK` de la diferencia; bajar con `RACK` → `RETURN_TO_RACK`; bajar con `STAGING` → `TO_STAGING` y staging suma; quitar con `STAGING` → la partida desaparece y la unidad está en staging; quitar y descartar funcionan aunque no haya cajas abiertas; partida de otro carrito → 404. |
+| T11 | `int` · `pos-cart-items.int.test.ts` | Subir cantidad → `PICK` de la diferencia; bajar con `RACK` → `RETURN_TO_RACK`; bajar con `STAGING` → `TO_STAGING` y staging suma; quitar con `STAGING` → la partida desaparece y la unidad está en staging; una partida tomada de staging quitada con `STAGING` → `RETURN_TO_RACK` en staging y la unidad queda disponible ahí; quitar y descartar funcionan aunque no haya cajas abiertas; partida de otro carrito → 404. |
 | T12 | `int` · `pos-cart-items.int.test.ts` | Descuento de partida y global con `pos.discount` → totales correctos (`computeSaleTotals`); sin `pos.discount` (Vendedor) → 403 con `details.permission`; descuento mayor que el importe → 400; bajar la cantidad recorta el descuento de la partida y el global para no superar el nuevo importe. |
 | T13 | `int` · `pos-carts.int.test.ts` | `GET /carts?scope=all` lista los carritos `ACTIVE` y `SUSPENDED` de todos los vendedores de la sucursal con su dueño y total; `scope=mine` solo los propios; `number=2` devuelve solo ese carrito; otro usuario con `pos.sell` ve el detalle de un carrito ajeno, le cambia una cantidad y lo descarta; descartar con `RACK` libera todo y deja `DISCARDED`; cualquier cambio posterior → 409 `CART_NOT_EDITABLE`; un carrito de otra sucursal → 403 `BRANCH_FORBIDDEN`. |
 | T14 | `int` · `pos-checkout.int.test.ts` | Vendedor arma y cajero cobra en `C1` con efectivo: 201 `SaleTicketDto`; folio `S1-000001` (el siguiente `S1-000002`; el primero de `S2` es `S2-000001`); `cashSessionId` y `cashRegisterId` de `C1`, `sellerId` = vendedor y `cashierId` = cajero; *snapshots* de SKU, nombre y variante; totales de `computeSaleTotals` y copia de `taxRateBp`/`pricesIncludeTax`; `Payment` con `received` y `change`; `quantity` y `reservedQty` bajan exactamente en el rack de origen; movimientos `SALE` con `reference` de la venta; carrito `CHECKED_OUT`; `branch` del ticket con los datos de la sucursal, aunque el vendedor no tenga `settings.branch`. |
@@ -481,11 +487,11 @@ Los marcados con "int" corren contra `postgres-test` con `app.inject`, sobre el 
 | T20 | `int` · `pos-lookup.int.test.ts` | `GET /pos/lookup` por SKU de variante y por SKU padre → `LocateResultDto` con precio efectivo y ubicaciones; un usuario solo con `pos.sell` (sin `warehouse.read`) → 200; tras agregar 1 unidad al carrito, la ubicación muestra 1 reservada y F7 (`GET /racks/:id`) marca la variante "en piso"; con `inventory.other_branches.read` trae `S2` con sus disponibles y sin él `otherBranches: null`. |
 | T21 | `int` · `pos-access.int.test.ts` | `GET /pos/branch` → `TicketBranchDto` para un Vendedor (sin `settings.branch`); sin `pos.sell` → 403 en las rutas de `pos.sell`; `/api/docs/json` agrupa las 22 rutas bajo el tag `pos` con `security`. |
 | T22 | `int` · `pos-concurrency.int.test.ts` | Dos vendedores agregan en paralelo la última unidad de un rack → un 201 y un 409 `STOCK_INSUFFICIENT`, `reservedQty` final 1; 10 cobros en paralelo repartidos en `C1` y `C2` de `S1` → folios `S1-000001`…`S1-000010` sin huecos ni duplicados; dos cobros en paralelo del mismo carrito desde cajas distintas → un 201 y un 409 `CART_NOT_EDITABLE`; dos aperturas en paralelo de `C1` → un 201 y un 409 `CASH_SESSION_ALREADY_OPEN`; 10 vendedores crean carrito en paralelo → números 1…10 sin repetir; con un carrito pendiente, cerrar `C1` y `C2` en paralelo → al menos uno recibe 409 `CASH_SESSION_HAS_OPEN_CARTS` y nunca quedan las dos cerradas con el carrito pendiente. |
-| T23 | `web` · `PosHomePage.test.tsx` | Muestra [Atender] y [Cobrar]; "Mi caja" aparece solo si el dispositivo tiene una caja abierta guardada; sin `pos.sell`, el módulo no aparece en el menú. |
+| T23 | `web` · `PosHomePage.test.tsx` | En `/pos` muestra [Atender] (lleva a `/pos/sell`) y [Cobrar] (lleva a `/pos/carts`); "Mi caja" aparece solo si el dispositivo tiene una caja abierta guardada; sin `pos.sell`, el módulo no aparece en el menú. |
 | T24 | `web` · `PosRegisterPage.test.tsx` | Lista las cajas: la abierta con "Cobrar en esta caja" (guarda `wm.pos.register.<branchId>` y vuelve a `next`); la cerrada con "Abrir" solo con `pos.session.open`; abrir envía `OpenSessionInput` con el fondo en centavos; un 409 `CASH_SESSION_ALREADY_OPEN` refresca la lista. Ir a cobrar sin caja guardada, o con su sesión cerrada, lleva a `/pos/register?next=`; un 409 `CASH_SESSION_CLOSED` al cobrar muestra "La caja se cerró" y lleva a elegir otra sin perder el carrito. |
-| T25 | `web` · `PosSalePage.test.tsx` | "Atender" no pide caja; un escaneo llama a `/pos/lookup`; el selector muestra tallas y colores y marca los que no tienen disponibles; elegir talla y color muestra las ubicaciones; "Agregar" desde `A-01-01` envía `CartItemAddInput`; un SKU padre pide elegir; una variante desactivada no se puede agregar; sin cajas abiertas en la sucursal muestra "No hay cajas abiertas" y deshabilita "Agregar". |
+| T25 | `web` · `PosSalePage.test.tsx` | "Atender" no pide caja; un escaneo llama a `/pos/lookup`; el selector muestra tallas y colores y marca los que no tienen disponibles; elegir talla y color muestra las ubicaciones; "Agregar" desde `A-01-01` envía `CartItemAddInput`; sin carrito activo, el primer "Agregar" crea el carrito (`POST /pos/carts`) antes de la partida y luego muestra "Carrito #N"; un SKU padre pide elegir; una variante desactivada no se puede agregar; sin cajas abiertas en la sucursal muestra "No hay cajas abiertas" y deshabilita "Agregar". |
 | T26 | `web` · `PosSalePage.test.tsx` | Con `otherBranches` muestra "Hay en Sucursal 2 (2) · 55 1234 5678" (arriba y resaltado si aquí no hay disponibles); con `otherBranches: null` no muestra nada. Un escaneo `promo` abre el aviso con el texto, con la descripción si coincide con `promoQrText`; "Aplicar descuento" aparece solo con `pos.discount` y abre el descuento global. |
-| T27 | `web` · `CartPanel.test.tsx` | Muestra las partidas con su ubicación y el total fijo; [+] envía la cantidad nueva; [−] y "Quitar" abren la hoja "Regresar a su ubicación (A-01-01)" / "Enviar a staging" y envían `releaseTo`; "Descuento" aparece solo con `pos.discount`; 10 % sobre $899.00 envía `discount: 8990`. |
+| T27 | `web` · `CartPanel.test.tsx` | Muestra las partidas con su ubicación y el total fijo; [+] envía la cantidad nueva; [−] y "Quitar" abren la hoja "Regresar a su ubicación (A-01-01)" / "Enviar a staging" y envían `releaseTo` (una partida de staging muestra solo "Regresar a staging (STG-01-01)"); "Descuento" aparece solo con `pos.discount`; 10 % sobre $899.00 envía `discount: 8990`. |
 | T28 | `web` · `CartBar.test.tsx` | Chips del activo y los suspendidos con su número ("#12") y etiqueta o cliente; el activo muestra "Carrito #12" en grande; tocar uno llama a `resume`; "Nuevo carrito" llama a `POST /carts`; "Suspender" pide etiqueta y cliente; con 5 suspendidos el botón se deshabilita con el aviso. |
 | T29 | `web` · `BranchCartsPage.test.tsx` | Pide `scope=all`, lista los carritos de la sucursal con su número, vendedor, etiqueta, piezas y total, y se refresca cada 15 s; teclear "12" en "Buscar #" pide `number=12` y abre ese carrito (sin resultado: "No hay un carrito abierto con ese número"); tocar uno abre su detalle con "Cobrar" y "Descartar". |
 | T30 | `web` · `CheckoutPage.test.tsx` | Muestra "Cobrando en Caja 1", el número y el dueño del carrito; elegir efectivo y teclear 1300 → "Cambio $52.00"; combinar efectivo y tarjeta; "Confirmar cobro" deshabilitado hasta que lo pagado cuadre; envía `CheckoutInput` con el `cashSessionId` del dispositivo, `received`, `reference` y `verifiedUnits`; un 400 `PAYMENT_TOTAL_MISMATCH` muestra el mensaje sin salir. |
@@ -527,6 +533,18 @@ El criterio de F5 "los cambios se reflejan después en los tickets reales" queda
 
 *(Se completa al cerrar la fase.)*
 
+**Implementación 2026-10-15 (agente, Windows 11 + Node 24 + pnpm + Docker, con `pnpm dev:db`):**
+
+| Evidencia | Resultado |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` | Los cuatro con código 0, incluidos los tests de F0–F7 (CA12). `pnpm build` solo avisa que el bundle web pasa de 500 kB (1,86 MB, 514 KB comprimido; observación de F6 y F7). |
+| Tests | 36/36 requeridos en verde. `shared`: 406 casos en 18 suites (`pos.test.ts`, `errors.test.ts`). `api`: 600 en 80 suites (`pos-sessions`, `pos-carts`, `pos-cart-items`, `pos-checkout`, `pos-sales`, `pos-lookup`, `pos-access` y `pos-concurrency`; T22 repetido 4 veces sin fallos). `web`: 425 en 64 suites. Sin `skip`/`only`/`todo`/`xit`. Hay casos extra junto a los requeridos. |
+| Regresiones declaradas | F5 T22–T23 (`previewTotals.test.ts`, `TicketPreview.test.tsx`) en verde sin cambios con `previewTotals` delegado. F3 T18 (`AppLayout.test.tsx`) usa `/reports` como ejemplo de placeholder. F1 T15 y T18 en verde (TODO 1). |
+| Cobertura (umbral por carpeta 80 %, fijo en los `jest.config.cjs`) | `apps/api/src/modules/pos/**` 98,78 % líneas · 93,84 % ramas; `apps/web/src/features/pos/**` 93,46 % · 86,15 % (`ticket/`: 100 % · 90 %); `packages/shared` 99,31 % · 93,95 % (CA13). |
+| Alcance (constitución §4.6) | Código solo en `autoriza_codigo_en`, con las ampliaciones de §13 (dos `jest.config.cjs` y `AppLayout.test.tsx`). El módulo de la API suma `pos.actor.ts` (actor y pertenencia a la sucursal) dentro de `modules/pos/**`; la web suma `components.tsx`, `device.ts`, `DiscountDialog.tsx`, `ProductPicker.tsx` y `ticket/` dentro de `features/pos/**`. Sin dependencias nuevas ni cambios de schema o migraciones. |
+
+**Pendiente para el cierre:** las verificaciones manuales de CA6 (Epson TM-T20III, con F5 CA5, F6 CA6 y F7 CA7) y CA11 (flujo completo en dispositivos reales, con F7 CA6) en la visita a la sucursal, y la confirmación del usuario (constitución §4.9).
+
 ---
 
 ## 13. Registro de decisiones
@@ -556,3 +574,15 @@ El criterio de F5 "los cambios se reflejan después en los tickets reales" queda
 | 2026-10-13 | F5 CA5 ("Imprimir prueba" de Ajustes en la TM-T20III) y la lectura con el lector del QR de promoción de F5 CA4 se verifican junto con CA6, antes de cerrar F8. | Usuario (chat), al cerrar F5 |
 | 2026-10-13 | F6 CA6 (lectura de las etiquetas de la Ribetec RT-420ME y de las hojas A4 o Carta con la cámara y con el lector) se verifica en la misma visita a la sucursal, antes de cerrar F8. | Usuario (chat), al cerrar F6 |
 | 2026-10-14 | F7 CA6 (ubicar y reubicar con una mano en Android y iPhone) se verifica con CA11, y F7 CA7 (lectura de las etiquetas de ubicación impresas) con CA6, en la visita a la sucursal antes de cerrar F8. | Usuario (chat), al cerrar F7 |
+| 2026-10-15 | El usuario autoriza la implementación de F8. Spec pasa a `EN_PROGRESO`. | Usuario (chat) |
+| 2026-10-15 | Rutas web: `/pos` es el inicio del POS (`PosHomePage`, con [Atender], [Cobrar] y "Mi caja") y Atender pasa a `/pos/sell`. La spec no le daba ruta a `PosHomePage`. T23 y §7 actualizados. | Usuario (chat), opción A propuesta por el agente |
+| 2026-10-15 | Regresión declarada de F3: T18 (`AppLayout.test.tsx`) pasa su ejemplo de placeholder de `/pos` a `/reports`. El archivo se suma a `autoriza_codigo_en`. | Usuario (chat), por recomendación del agente |
+| 2026-10-15 | Cobertura permanente: `apps/api/jest.config.cjs` mide `src/modules/pos/**` y `apps/web/jest.config.cjs` mide `src/features/pos/**` (sin `testing.ts`), con umbral de 80 % en líneas y ramas; los dos archivos se suman a `autoriza_codigo_en`. | Usuario (chat), por recomendación del agente |
+| 2026-10-15 | Una partida tomada de staging se libera en su lugar aunque se pida `STAGING` (`moveReservedToStaging` no acepta staging como origen). T11 y T27 suman el caso. | Usuario (chat), por recomendación del agente |
+| 2026-10-15 | Atender crea el carrito en el primer "Agregar", no al abrirse. T25 suma el caso. | Usuario (chat), por recomendación del agente |
+| 2026-10-15 | Se corrige el texto de §2, que decía que F1 estaba `LISTA` sin implementar. | Usuario (chat) |
+| 2026-10-15 | `apps/web/jest.config.cjs` sube `testTimeout` a 15 s: con la suite completa en paralelo, T18 de F5 (selector de zonas horarias) pasaba de los 5 s por defecto; sola pasa. No cambia ningún test. | Usuario (chat), por recomendación del agente |
+| 2026-10-15 | Abrir una caja desactivada → 400 en `cashRegisterId`. Subir la cantidad de una partida exige una caja abierta en la sucursal, como agregar. | Propuesta del agente; aprobada por el usuario (2026-10-15) |
+| 2026-10-15 | `release-all` descarta solo los carritos con partidas (`releasedCarts` los cuenta y el audit los lista); los vacíos los descarta el cierre de la última caja. `details.carts` de `CASH_SESSION_HAS_OPEN_CARTS` trae `id`, `number`, `owner`, `label`, `customerName` y `unitCount`. | Propuesta del agente; aprobada por el usuario (2026-10-15) |
+| 2026-10-15 | Contratos extra en `shared/pos.ts`, dentro del perímetro: `CartItemRemoveQuery` (`releaseTo` del `DELETE`, por defecto `RACK`) y `ReleaseCartsResultDto` (`{ releasedCarts }`). `GET /cash-sessions/:id/sales` acepta `q` de `PaginationQuery` y busca por folio. | Propuesta del agente; aprobada por el usuario (2026-10-15) |
+| 2026-10-15 | UI: `/pos/close` exige además `pos.session.close`. En Atender, un atributo con un solo valor (p. ej. todo de piel) queda elegido solo. Los atajos de efectivo redondean lo que falta cobrar en efectivo al siguiente múltiplo de $50, $100 y $500. | Propuesta del agente; aprobada por el usuario (2026-10-15) |

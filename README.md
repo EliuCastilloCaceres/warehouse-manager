@@ -217,6 +217,35 @@ Si un rack no tiene espacio aparece "A-01-02 no tiene espacio (38/40, entran 2)"
 
 El QR contiene `LOC:A-01-03`: cualquier campo de escaneo lo reconoce como ubicación.
 
+### Punto de venta (POS)
+
+Módulo **POS** (`pos.sell`). El vendedor arma el carrito desde su celular y cualquier cajero lo cobra desde una caja abierta. El inicio (`/pos`) tiene **Atender** y **Cobrar**, más **Mi caja** (historial y corte) si el dispositivo tiene una caja abierta.
+
+**Abrir caja** (`pos.session.open`): en **Cobrar** (o al cobrar sin caja) aparece "¿Desde qué caja cobras?". Una caja cerrada se abre con **Abrir** y el fondo inicial; una abierta se elige con **Cobrar en esta caja**. El dispositivo recuerda su caja. Para atender basta con que la sucursal tenga al menos una caja abierta; sin ninguna, Atender avisa "No hay cajas abiertas" y no deja agregar.
+
+**Atender** (`/pos/sell`), con varios vendedores a la vez:
+
+- Escanea o escribe un SKU: aparecen las tallas y colores (✕ = sin disponibles aquí), las ubicaciones de la variante elegida y, con `inventory.other_branches.read`, cuántas hay en otras sucursales con su teléfono.
+- **Agregar** toma una pieza de esa ubicación y la reserva (en el almacén se ve "en piso"). El primer **Agregar** crea el carrito y le da un número corto: "Carrito #12". **Díselo al cliente** para que el cajero lo encuentre.
+- En el carrito, [−] y **Quitar** preguntan qué hacer con la pieza: **Regresar a su ubicación** o **Enviar a staging** (una pieza tomada de staging regresa a staging). Con `pos.discount` hay descuento por partida o al total, en monto o en %.
+- Cada vendedor tiene un carrito activo y hasta **5 suspendidos** (barra de carritos arriba). **Suspender** guarda etiqueta y cliente (opcionales) sin liberar las piezas; tocar un carrito suspendido lo retoma.
+- Un QR de promoción (`PROMO:DESC10`) solo muestra el código; con `pos.discount`, **Aplicar descuento** abre el descuento al total para capturarlo a mano.
+
+**Cobrar** (`/pos/carts`): lista los carritos abiertos de todos los vendedores (se actualiza cada 15 s). **Buscar #** con el número abre ese carrito; desde el detalle se **Cobra** o se **Descarta**. En el cobro:
+
+- La venta y su dinero quedan en **la caja del dispositivo que cobra**, sin importar quién armó el carrito. El ticket dice "Le atendió" (vendedor) y "Cajero".
+- **Verificar piezas** es opcional: escanea cada pieza y se palomea su partida ("2 de 3 piezas verificadas"). Una pieza que no está en el carrito solo avisa. Si faltan piezas por verificar, pide confirmación y queda en el audit.
+- Efectivo, tarjeta y transferencia se pueden combinar (uno por forma de pago). El efectivo se captura como lo recibido (con atajos de montos redondos) y calcula el cambio; tarjeta y transferencia llevan una referencia opcional. **Confirmar cobro** se habilita cuando lo pagado cuadra.
+- Si la caja se cerró desde otro dispositivo, avisa "La caja se cerró" y pide elegir otra; el carrito no se pierde.
+
+**Ticket:** al cobrar se abre el diálogo de impresión con el ticket (80 mm). En **Atender → Menú → Ajustes del ticket** se desactiva la impresión automática (queda la vista previa con **Imprimir**) o se cambia a papel de 58 mm; se guarda en ese dispositivo. Imprime con la Epson TM-T20III instalada como impresora del sistema, márgenes "Ninguno" y escala 100 % (ver [Impresión](#impresión-tickets-y-etiquetas)). El ticket usa los datos de **Ajustes** (logo, textos y QR de promoción).
+
+**Mi caja · Historial** (`/pos/sales`): ventas cobradas en la caja del dispositivo, con **Reimprimir**. Sin `reports.sales.all_users` solo ves las que vendiste o cobraste.
+
+**Cancelar una venta** (`pos.sale.cancel`, Administrador o Gerente): desde el historial, con motivo obligatorio, mientras la caja donde se cobró siga abierta. Es total: las piezas regresan al staging del almacén y su efectivo deja de contar en el corte.
+
+**Corte** (`pos.session.close`, `/pos/close`): es ciego. Primero se captura el **efectivo contado**; al **Cerrar caja** se ve el esperado (fondo + efectivo cobrado, sin las ventas canceladas), lo contado y la diferencia (en rojo si falta), con el desglose por forma de pago y **Imprimir corte** (80 mm). Cualquier usuario con el permiso puede cerrar una caja. Si es la **última caja abierta** de la sucursal y hay carritos con piezas reservadas, los lista y ofrece **Regresar todo a su ubicación** o **Enviar todo a staging** antes de cerrar. Después del corte, el dispositivo olvida su caja.
+
 ### Prueba de escáner e impresión (`/dev/scanner`)
 
 Menú de usuario → **Probar escáner**. Sirve para verificar en la tienda la cámara, el lector y la impresora de etiquetas:

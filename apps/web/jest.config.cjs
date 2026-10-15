@@ -1,5 +1,8 @@
 /** @type {import('jest').Config} */
 module.exports = {
+  // Con la suite completa en paralelo, las pruebas de formularios grandes (p. ej. el selector de
+  // zonas horarias de Ajustes) pueden pasar de los 5 s por defecto (decisión de F8, 2026-10-15).
+  testTimeout: 15_000,
   testEnvironment: '<rootDir>/src/test/jsdom-environment.cjs',
   roots: ['<rootDir>/src'],
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
@@ -13,8 +16,8 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   // F3: el adaptador de cámara (cameraScanner.ts) se verifica a mano (CA7).
-  // F4: users, F5: settings, F6: products y F7: warehouse, sin sus datos de prueba (testing.ts);
-  // F5: shared/ticket.
+  // F4: users, F5: settings, F6: products, F7: warehouse y F8: pos, sin sus datos de prueba
+  // (testing.ts); F5: shared/ticket.
   collectCoverageFrom: [
     '<rootDir>/src/shared/api/**/*.ts',
     '<rootDir>/src/features/auth/**/*.{ts,tsx}',
@@ -30,6 +33,8 @@ module.exports = {
     '!<rootDir>/src/features/products/testing.ts',
     '<rootDir>/src/features/warehouse/**/*.{ts,tsx}',
     '!<rootDir>/src/features/warehouse/testing.ts',
+    '<rootDir>/src/features/pos/**/*.{ts,tsx}',
+    '!<rootDir>/src/features/pos/testing.ts',
     '!<rootDir>/src/**/*.test.{ts,tsx}',
   ],
   coverageThreshold: {
@@ -43,5 +48,6 @@ module.exports = {
     './src/shared/ticket/': { lines: 80, branches: 80 },
     './src/features/products/': { lines: 80, branches: 80 },
     './src/features/warehouse/': { lines: 80, branches: 80 },
+    './src/features/pos/': { lines: 80, branches: 80 },
   },
 };

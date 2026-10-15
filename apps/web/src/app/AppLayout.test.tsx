@@ -32,14 +32,14 @@ describe('AppLayout', () => {
     ).toEqual(expected);
   });
 
-  // Adapta T10 de F0.
-  it('en /pos con pos.sell muestra el placeholder sin más fetch que el refresh (T18)', async () => {
+  // Adapta T10 de F0. F8 implementó /pos: el ejemplo de placeholder pasa a /reports (reports.sales).
+  it('en /reports con reports.sales muestra el placeholder sin más fetch que el refresh (T18)', async () => {
     const fetchMock = mockFetch({
       'POST /api/v1/auth/refresh': () => jsonResponse(200, makeSession({ role: 'SELLER' })),
     });
-    renderApp('/pos');
+    renderApp('/reports');
 
-    expect(await screen.findByRole('heading', { name: 'POS' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Reportes' })).toBeInTheDocument();
     expect(screen.getByText('Próximamente')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
